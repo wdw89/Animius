@@ -8,6 +8,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -243,7 +245,7 @@ private fun GridLayoutTabs(
             GridCells.Fixed(3)
         }
         LazyVerticalGrid(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().focusGroup(),
             columns = columns,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -268,22 +270,21 @@ private fun Tab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .padding(8.dp)
-            .background(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(11.dp)
-            )
-            .clip(RoundedCornerShape(11.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.padding(8.dp),
+        shape = RoundedCornerShape(11.dp),
+        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+        contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onBackground,
     ) {
-        Text(
-            text = text(),
-//            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.align(Alignment.Center)
-        )
+        Box(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = text(),
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
     }
 }
 

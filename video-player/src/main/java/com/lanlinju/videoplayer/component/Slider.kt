@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
@@ -36,7 +37,8 @@ fun Slider(
     color: Color = MaterialTheme.colorScheme.primary,
     trackColor: Color = Color.LightGray.copy(alpha = 0.38f),
     secondTrackColor: Color =Color.LightGray.copy(alpha = 0.78f),
-    isSeeking: Boolean = false
+    isSeeking: Boolean = false,
+    focusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     val isAnimHeight = remember(isSeeking) { mutableStateOf(isSeeking) }
     val animHeight = animateDpAsState(

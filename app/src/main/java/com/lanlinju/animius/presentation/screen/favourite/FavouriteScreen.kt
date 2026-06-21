@@ -1,5 +1,8 @@
 package com.lanlinju.animius.presentation.screen.favourite
 
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +23,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,8 +34,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.DpOffset
@@ -41,6 +55,7 @@ import com.lanlinju.animius.presentation.component.SourceBadge
 import com.lanlinju.animius.presentation.component.StateHandler
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.isWideScreen
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +88,8 @@ fun FavouriteScreen(
 
             LazyVerticalGrid(
                 modifier = Modifier
-                    .padding(paddingValues),
+                    .padding(paddingValues)
+                    .focusGroup(),
                 columns = if (isWideScreen(context)) GridCells.Adaptive(dimensionResource(R.dimen.min_media_card_width)) else GridCells.Fixed(
                     3
                 ),
@@ -85,7 +101,25 @@ fun FavouriteScreen(
                     items(favouriteList) { anime ->
 
                         var expanded by remember { mutableStateOf(false) }
+                        var longPressConsumed by remember { mutableStateOf(false) }
+                        var touchPressed by remember { mutableStateOf(false) }
                         val haptic = LocalHapticFeedback.current
+                        val longPressTimeout = LocalViewConfiguration.current.longPressTimeoutMillis
+                        val handler = remember { Handler(Looper.getMainLooper()) }
+
+                        DisposableEffect(Unit) {
+                            onDispose { handler.removeCallbacksAndMessages(null) }
+                        }
+
+                        LaunchedEffect(touchPressed) {
+                            if (touchPressed) {
+                                delay(longPressTimeout)
+                                longPressConsumed = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                expanded = true
+                                touchPressed = false
+                            }
+                        }
 
                         Box {
                             SourceBadge(
@@ -97,15 +131,51 @@ fun FavouriteScreen(
                                     image = anime.imgUrl,
                                     label = anime.title,
                                     onClick = {
-                                        onNavigateToAnimeDetail(
-                                            anime.detailUrl,
-                                            anime.sourceMode
-                                        )
+                                        if (!longPressConsumed) {
+                                            onNavigateToAnimeDetail(
+                                                anime.detailUrl,
+                                                anime.sourceMode
+                                            )
+                                        }
+                                        longPressConsumed = false
                                     },
-                                    onLongClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        expanded = true
-                                    }
+                                    modifier = Modifier
+                                        .onPreviewKeyEvent { event ->
+                                            when {
+                                                event.key == Key.DirectionCenter && event.type == KeyEventType.KeyDown -> {
+                                                    handler.postDelayed({
+                                                        longPressConsumed = true
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        expanded = true
+                                                    }, longPressTimeout)
+                                                    true
+                                                }
+                                                event.key == Key.DirectionCenter && event.type == KeyEventType.KeyUp -> {
+                                                    handler.removeCallbacksAndMessages(null)
+                                                    if (!longPressConsumed) {
+                                                        onNavigateToAnimeDetail(
+                                                            anime.detailUrl,
+                                                            anime.sourceMode
+                                                        )
+                                                    }
+                                                    longPressConsumed = false
+                                                    true
+                                                }
+                                                else -> false
+                                            }
+                                        }
+                                        .pointerInput(Unit) {
+                                            awaitEachGesture {
+                                                awaitFirstDown(requireUnconsumed = false)
+                                                touchPressed = true
+                                                while (touchPressed) {
+                                                    val event = awaitPointerEvent()
+                                                    if (event.changes.all { !it.pressed }) {
+                                                        touchPressed = false
+                                                    }
+                                                }
+                                            }
+                                        }
                                 )
                             }
 

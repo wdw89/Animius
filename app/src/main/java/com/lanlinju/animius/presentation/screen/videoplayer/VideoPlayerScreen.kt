@@ -199,6 +199,8 @@ fun VideoPlayScreen(
             ) {
 
                 // Video player composable
+                val sliderFocusRequester = remember { FocusRequester() }
+
                 VideoPlayer(
                     url = video.url,
                     videoPosition = video.lastPlayPosition,
@@ -209,9 +211,13 @@ fun VideoPlayScreen(
                         .focusable()
                         .defaultRemoteControlHandler(
                             playerState = playerState,
-                            onNextClick = { viewModel.playNextEpisode(playerState.player.currentPosition) }
+                            onNextClick = { viewModel.playNextEpisode(playerState.player.currentPosition) },
+                            onSliderFocusRequest = { sliderFocusRequester.requestFocus() }
                         )
                 ) {
+                    val controlFocusRequester = remember { FocusRequester() }
+                    val isAndroidTV = remember { isAndroidTV(activity) }
+
                     VideoPlayerControl(
                         state = playerState,
                         title = "${video.title}-${video.episodeName}",
@@ -230,7 +236,9 @@ fun VideoPlayScreen(
                                 onForwardClick = { playerState.control.skip(85000) }
                             )
                         },
-                        onDanmakuClick = { viewModel.setEnabledDanmaku(it) }
+                        onDanmakuClick = { viewModel.setEnabledDanmaku(it) },
+                        modifier = if (isAndroidTV) Modifier.focusRequester(controlFocusRequester) else Modifier,
+                        sliderFocusRequester = sliderFocusRequester
                     )
                 }
 
@@ -379,38 +387,44 @@ private fun DanmakuHost(
 private fun Modifier.defaultRemoteControlHandler(
     playerState: VideoPlayerState,
     onNextClick: () -> Unit = {},
+    onSliderFocusRequest: () -> Unit = {},
 ) = onKeyEvent { keyEvent: KeyEvent ->
-    if (keyEvent.type == KeyEventType.KeyDown)
+    if (keyEvent.type == KeyEventType.KeyUp)
         when (keyEvent.key) {
             Key.DirectionLeft -> {
-                playerState.showControlUi()
-                playerState.control.rewind()
+                if (!playerState.isControlUiVisible.value) {
+                    playerState.showControlUi()
+                    onSliderFocusRequest()
+                }
                 true
             }
 
             Key.DirectionRight -> {
-                playerState.showControlUi()
-                playerState.control.forward()
+                if (!playerState.isControlUiVisible.value) {
+                    playerState.showControlUi()
+                    onSliderFocusRequest()
+                }
                 true
             }
 
             Key.DirectionUp -> {
-                playerState.showEpisodeUi()
+                playerState.showControlUi()
                 true
             }
 
             Key.DirectionDown -> {
                 playerState.showControlUi()
-                onNextClick()
                 true
             }
 
             Key.DirectionCenter, Key.Spacebar -> {
-                if (playerState.isPlaying.value) {
-                    playerState.showControlUi()
-                    playerState.control.pause()
-                } else {
-                    playerState.control.play()
+                if (!playerState.isControlUiVisible.value) {
+                    if (playerState.isPlaying.value) {
+                        playerState.showControlUi()
+                        playerState.control.pause()
+                    } else {
+                        playerState.control.play()
+                    }
                 }
                 true
             }

@@ -36,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import com.lanlinju.videoplayer.icons.Fullscreen
 import com.lanlinju.videoplayer.icons.FullscreenExit
@@ -59,10 +60,12 @@ fun VideoPlayerControl(
     onNextClick: () -> Unit = {},
     onDanmakuClick: (Boolean) -> Unit = {},
     optionsContent: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    sliderFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     CompositionLocalProvider(LocalContentColor provides contentColor) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
                 .background(background)
                 .padding(
@@ -93,7 +96,8 @@ fun VideoPlayerControl(
                     state = state,
                     enabledDanmaku = danmakuEnabled,
                     onNextClick = onNextClick,
-                    onDanmakuClick = onDanmakuClick
+                    onDanmakuClick = onDanmakuClick,
+                    sliderFocusRequester = sliderFocusRequester,
                 )
             }
         }
@@ -154,7 +158,8 @@ private fun BottomControlBar(
     state: VideoPlayerState,
     enabledDanmaku: Boolean,
     onNextClick: () -> Unit,
-    onDanmakuClick: (Boolean) -> Unit
+    onDanmakuClick: (Boolean) -> Unit,
+    sliderFocusRequester: FocusRequester,
 ) {
     val timestamp =
         remember(
@@ -187,6 +192,7 @@ private fun BottomControlBar(
                 .height(30.dp),
             isSeeking = state.isSeeking.value,
             color = progressLineColor,
+            focusRequester = sliderFocusRequester,
         )
 
         if (!state.isSeeking.value) {
@@ -352,18 +358,11 @@ private fun AdaptiveIconButton(
     enabledIndication: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val indication = LocalIndication.current
-
-    Box(
-        modifier = modifier
-            .clip(CircleShape)
-            .clickable(
-                onClick = onClick,
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = if (enabledIndication) indication else null
-            ),
-        contentAlignment = Alignment.Center
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(MediumIconButtonSize),
+        enabled = enabled,
+        interactionSource = interactionSource,
     ) {
         content()
     }
