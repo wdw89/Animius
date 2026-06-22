@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -90,7 +91,7 @@ fun MediaSmall(
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = if (isFocused) 3.dp else 0.dp,
-                color = if (isFocused) Color.White else Color.Transparent,
+                color = if (isFocused) Color(0xFFBCC0C8) else Color.Transparent,
                 shape = cardShape
             ),
         colors = CardDefaults.cardColors(

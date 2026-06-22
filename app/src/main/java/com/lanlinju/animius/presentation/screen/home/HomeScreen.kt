@@ -273,7 +273,7 @@ private fun Tab(
     Surface(
         onClick = onClick,
         modifier = modifier.padding(8.dp),
-        shape = RoundedCornerShape(11.dp),
+        shape = RoundedCornerShape(20.dp),
         color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
         contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onBackground,
     ) {
@@ -418,12 +418,6 @@ private fun HomeTile(
                     .align(Alignment.BottomStart)
                     .offset(y = 8.dp)
                     .padding(vertical = if (isWideScreen && useGridLayout) 8.dp else 0.dp)
-                    .run {
-                        if (isWideScreen) {
-                            // 获取焦点
-                            clickable { }
-                        } else this
-                    }
             )
         }
 

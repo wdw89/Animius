@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
@@ -571,27 +572,22 @@ fun AnimeGenres(
         modifier = modifier
     ) {
         items(genres) { genre ->
-            SuggestionChip(
-                label = {
-                    Text(
-                        text = genre.uppercase(),
-                        color = MaterialTheme.colorScheme.onBackground,
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(
-                            vertical = dimensionResource(Res.dimen.small_padding)
-                        )
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.25f))
+                    .border(0.dp, Color.Transparent, CircleShape)
+            ) {
+                Text(
+                    text = genre.uppercase(),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(
+                        horizontal = dimensionResource(Res.dimen.small_padding),
+                        vertical = dimensionResource(Res.dimen.small_padding)
                     )
-                },
-                onClick = { },
-                shape = CircleShape,
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    containerColor = color.copy(alpha = 0.25f)
-                ),
-                border = SuggestionChipDefaults.suggestionChipBorder(
-                    enabled = true,
-                    borderColor = Color.Transparent
-                ),
-            )
+                )
+            }
         }
     }
 }

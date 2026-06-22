@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -64,6 +65,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -132,19 +134,22 @@ fun WeekScreen(
         Column {
             TopAppBar(
                 title = {
-                    Column(modifier = Modifier.clickable {
-                        showSourceSwitchDialog = true
-                    }) {
-                        Text(
-                            text = stringResource(id = R.string.lbl_schedule),
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Text(
-                            text = SourceHolder.currentSourceMode.name,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                    Surface(
+                        onClick = { showSourceSwitchDialog = true },
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.Transparent,
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
+                            Text(
+                                text = stringResource(id = R.string.lbl_schedule),
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Text(
+                                text = SourceHolder.currentSourceMode.name,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
                     }
-
                 },
                 actions = {
                     AppBarAction(
