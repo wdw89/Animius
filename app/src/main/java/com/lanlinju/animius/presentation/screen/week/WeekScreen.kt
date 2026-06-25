@@ -121,6 +121,14 @@ fun WeekScreen(
     var showSourceSwitchDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showDomainChangeDialog by remember { mutableStateOf(false) }
+    var currentSourceName by remember { mutableStateOf(SourceHolder.currentSourceMode.name) }
+    val isSourceChanged by SourceHolder.isSourceChanged
+
+    LaunchedEffect(isSourceChanged) {
+        if (isSourceChanged > 0) {
+            viewModel.refresh()
+        }
+    }
 
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -145,7 +153,7 @@ fun WeekScreen(
                                 style = MaterialTheme.typography.titleLarge
                             )
                             Text(
-                                text = SourceHolder.currentSourceMode.name,
+                                text = currentSourceName,
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }
@@ -229,6 +237,7 @@ fun WeekScreen(
             onDownloadUpdate = { lifecycleOwner ->
                 viewModel.downloadVersionUpdate(context, lifecycleOwner)
             },
+            onSourceChanged = { mode -> currentSourceName = mode.name },
         )
     }
 
@@ -492,11 +501,13 @@ fun Dialogs(
     onDismissLoadingIndicationDialog: () -> Unit,
     onDownloadUpdate: (LifecycleOwner) -> Unit,
     onRefresh: () -> Unit,
+    onSourceChanged: (SourceMode) -> Unit = {}
 ) {
     if (showSourceSwitchDialog) {
         SourceSwitchDialog(
             onDismissRequest = onDismissSourceSwitchDialog,
-            onRefresh = onRefresh
+            onRefresh = onRefresh,
+            onSourceChanged = onSourceChanged
         )
     }
     if (showSettingsDialog) {
@@ -588,9 +599,10 @@ private fun LoadingIndicationDialog(
 }
 
 @Composable
-private fun SourceSwitchDialog(
+fun SourceSwitchDialog(
     onDismissRequest: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onSourceChanged: (SourceMode) -> Unit = {}
 ) {
     var currentSourceMode by rememberPreference(KEY_SOURCE_MODE, DEFAULT_ANIME_SOURCE)
 
@@ -629,7 +641,15 @@ private fun SourceSwitchDialog(
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .selectable(
                                 selected = (text == selectedOption),
-                                onClick = { onOptionSelected(text) },
+                                onClick = {
+                                    val mode = SourceMode.valueOf(text)
+                                    currentSourceMode = mode
+                                    SourceHolder.isSourceChanged.value++
+                                    SourceHolder.switchSource(mode)
+                                    onSourceChanged(mode)
+                                    onDismissRequest()
+                                    onRefresh()
+                                },
                                 role = Role.RadioButton
                             )
                             .padding(start = dimensionResource(id = R.dimen.large_padding)),
@@ -648,25 +668,7 @@ private fun SourceSwitchDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val mode = SourceMode.valueOf(selectedOption)
-                    currentSourceMode = mode            // 保存默认源到偏好设置
-                    SourceHolder.isSourceChanged = true // 触发Home数据刷新
-                    SourceHolder.switchSource(mode)     // 切换数据源
-                    onDismissRequest()                  // 关闭Dialog
-                    onRefresh()                         // Week页面重新获取数据
-                }
-            ) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
+        confirmButton = {},
     )
 }
 
@@ -808,7 +810,6 @@ private fun DomainChangeDialog(
             TextButton(onClick = {
                 if (text.isNotEmpty()) {
                     currentDomain = text
-                    SourceHolder.isSourceChanged = true
                     SourceHolder.currentSource.baseUrl = currentDomain
                     onDismissRequest(true)
                 } else {

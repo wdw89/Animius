@@ -36,6 +36,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -48,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -55,7 +58,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -82,6 +87,7 @@ import com.lanlinju.animius.util.KEY_HOME_BACKGROUND_URI
 import com.lanlinju.animius.util.KEY_USE_GRID_LAYOUT
 import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
+import com.lanlinju.animius.presentation.screen.week.SourceSwitchDialog
 import com.lanlinju.animius.util.bannerParallax
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
@@ -95,11 +101,11 @@ fun HomeScreen(
 ) {
     val homeViewModel = hiltViewModel<HomeViewModel>()
     val availableDataList = homeViewModel.homeDataList.collectAsState()
+    val isSourceChanged by SourceHolder.isSourceChanged
 
-    LaunchedEffect(SourceHolder.isSourceChanged) {
-        if (SourceHolder.isSourceChanged) {
+    LaunchedEffect(isSourceChanged) {
+        if (isSourceChanged > 0) {
             homeViewModel.refresh()
-            SourceHolder.isSourceChanged = false
         }
     }
 
@@ -149,7 +155,8 @@ fun HomeScreen(
                                     it.detailUrl,
                                     SourceHolder.currentSourceMode
                                 )
-                            }
+                            },
+                            onRefresh = { homeViewModel.refresh() }
                         )
                     }
                 }
@@ -166,6 +173,8 @@ private fun HomeContent(
     homeBackgroundColor: Color,
     onSwitchGridLayout: (Boolean) -> Unit,
     onItemClick: (Anime) -> Unit,
+    onSourceChanged: () -> Unit = {},
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -182,7 +191,9 @@ private fun HomeContent(
             if (isWideScreen) {
                 HomeTile(
                     useGridLayout = useGridLayout,
-                    onSwitchGridLayout = onSwitchGridLayout
+                    onSwitchGridLayout = onSwitchGridLayout,
+                    onSourceChanged = onSourceChanged,
+                    onRefresh = onRefresh
                 )
             }
 
@@ -387,8 +398,12 @@ private fun HomeTile(
     useGridLayout: Boolean,
     onSwitchGridLayout: (Boolean) -> Unit,
     onClick: () -> Unit = {},
+    onSourceChanged: () -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
     val isWideScreen = isWideScreen(LocalContext.current)
+    var showSourceSwitchDialog by remember { mutableStateOf(false) }
+    var currentSourceName by remember { mutableStateOf(SourceHolder.currentSourceMode.name) }
     Row(
         modifier = modifier
             .fillMaxWidth(),
@@ -401,6 +416,7 @@ private fun HomeTile(
                     start = dimensionResource(Res.dimen.large_padding),
                     bottom = if (!isWideScreen) dimensionResource(Res.dimen.medium_padding) else 0.dp
                 )
+                .focusGroup()
         ) {
             if (!isWideScreen) {
                 Text(
@@ -410,15 +426,36 @@ private fun HomeTile(
                     modifier = Modifier.clickable { onClick() }
                 )
             }
-            Text(
-                text = SourceHolder.currentSourceMode.name,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .offset(y = 8.dp)
-                    .padding(vertical = if (isWideScreen && useGridLayout) 8.dp else 0.dp)
-            )
+            var isSourceFocused by remember { mutableStateOf(false) }
+            Surface(
+                onClick = { showSourceSwitchDialog = true },
+                shape = RoundedCornerShape(20.dp),
+                color = if (isSourceFocused) {
+                    if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+                        Color.White.copy(alpha = 0.15f)
+                    else
+                        Color.Black.copy(alpha = 0.1f)
+                } else Color.Transparent,
+                modifier = Modifier.onFocusChanged { isSourceFocused = it.isFocused }
+            ) {
+                Text(
+                    text = currentSourceName,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+            if (showSourceSwitchDialog) {
+                SourceSwitchDialog(
+                    onDismissRequest = { showSourceSwitchDialog = false },
+                    onRefresh = onRefresh,
+                    onSourceChanged = { mode ->
+                        currentSourceName = mode.name
+                        SourceHolder.isSourceChanged.value++
+                    }
+                )
+            }
         }
 
         if (!isWideScreen) {
