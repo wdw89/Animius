@@ -57,10 +57,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -430,12 +429,7 @@ private fun HomeTile(
             Surface(
                 onClick = { showSourceSwitchDialog = true },
                 shape = RoundedCornerShape(20.dp),
-                color = if (isSourceFocused) {
-                    if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
-                        Color.White.copy(alpha = 0.15f)
-                    else
-                        Color.Black.copy(alpha = 0.1f)
-                } else Color.Transparent,
+                color = if (isSourceFocused) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else Color.Transparent,
                 modifier = Modifier.onFocusChanged { isSourceFocused = it.isFocused }
             ) {
                 Text(
