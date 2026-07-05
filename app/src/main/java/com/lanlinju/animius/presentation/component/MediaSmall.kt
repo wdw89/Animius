@@ -91,7 +91,7 @@ fun MediaSmall(
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = if (isFocused) 3.dp else 0.dp,
-                color = if (isFocused) Color(0xFFBCC0C8) else Color.Transparent,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                 shape = cardShape
             ),
         colors = CardDefaults.cardColors(

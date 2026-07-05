@@ -5,14 +5,14 @@ import android.graphics.Bitmap
 import android.text.Html
 import android.widget.Toast
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -85,6 +86,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -127,7 +129,6 @@ import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.bannerParallax
 import com.lanlinju.animius.util.dynamicColorOf
-import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.log
 import com.lanlinju.animius.util.rememberPreference
@@ -399,25 +400,46 @@ private fun TopAppBar(
     onBackClick: () -> Unit,
     onDownloadClick: () -> Unit,
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+    var backFocused by remember { mutableStateOf(false) }
+    var moreFocused by remember { mutableStateOf(false) }
     TopAppBar(
         title = { },
         navigationIcon = {
-            IconButton(onClick = onBackClick) {
+            IconButton(
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = when {
+                        backFocused -> MaterialTheme.colorScheme.primary
+                        else -> Color.Transparent
+                    }
+                ),
+                modifier = Modifier.onFocusChanged { backFocused = it.isFocused },
+                onClick = onBackClick
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = stringResource(id = R.string.back),
-                    tint = Color.White.copy(alpha = 0.85f)
+                    tint = if (backFocused) MaterialTheme.colorScheme.onPrimary else Color.White.copy(alpha = 0.85f)
                 )
             }
         },
         actions = {
             Box {
-                IconButton(onClick = { expanded = true }) {
+                IconButton(
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = when {
+                            moreFocused -> MaterialTheme.colorScheme.primary
+                            else -> Color.Transparent
+                        }
+                    ),
+                    modifier = Modifier.onFocusChanged { moreFocused = it.isFocused },
+                    onClick = { expanded = true }
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
                         contentDescription = stringResource(id = R.string.more),
-                        tint = Color.White.copy(alpha = 0.85f)
+                        tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary else Color.White.copy(alpha = 0.85f)
                     )
                 }
 
@@ -472,15 +494,18 @@ private fun FavouriteIcon(
     viewModel: AnimeDetailViewModel,
 ) {
     val context = LocalContext.current
+    var isFocused by remember { mutableStateOf(false) }
     val msg = stringResource(
         id = if (!isFavourite) Res.string.add_favourite else Res.string.remove_favourite
     )
 
     IconButton(
+        modifier = Modifier.onFocusChanged { isFocused = it.isFocused },
         colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
-                alpha = 0.45f
-            )
+            containerColor = when {
+                isFocused -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            }
         ),
         onClick = {
             val favourite = Favourite(
@@ -495,7 +520,7 @@ private fun FavouriteIcon(
         Icon(
             if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
             contentDescription = stringResource(id = Res.string.favourite),
-            tint = MaterialTheme.colorScheme.primary,
+            tint = if (isFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
         )
     }
 }
@@ -607,8 +632,6 @@ fun AnimeEpisodes(
         initialFirstVisibleItemScrollOffset = if (lastPosition < 3) 0 else -200
     )
 
-    val isAndroidTV = isAndroidTV(LocalContext.current)
-
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(dimensionResource(Res.dimen.medium_padding)),
         contentPadding = contentPadding,
@@ -618,24 +641,29 @@ fun AnimeEpisodes(
         itemsIndexed(if (!reverseList) episodes else episodes.reversed()) { index, episode ->
             val focusRequester = remember { FocusRequester() }
             val interactionSource = remember { MutableInteractionSource() }
-//            var focusIndex by rememberSaveable { mutableStateOf(lastPosition) } // 保存焦点位置
+            val isFocused by interactionSource.collectIsFocusedAsState()
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val isActive = isFocused || isPressed
             FilledTonalButton(
                 onClick = { onEpisodeClick(index, episode) },
-                colors = ButtonDefaults.filledTonalButtonColors(containerColor = color.copy(0.5f)),
-                modifier = Modifier.run {
-                    if (isAndroidTV) {
-//                        onFocusChanged { if (it.isFocused) focusIndex = index }
-                        clip(CircleShape)
-                            .indication(interactionSource, LocalIndication.current)
-                            .hoverable(interactionSource)
-                            .focusRequester(focusRequester)
-                            .focusable(interactionSource = interactionSource)
-                    } else this
-                }
+                interactionSource = interactionSource,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = when {
+                        isActive -> MaterialTheme.colorScheme.primary
+                        else -> color.copy(0.5f)
+                    }
+                ),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .focusRequester(focusRequester)
             ) {
                 Text(
                     text = episode.name,
-                    color = if (episode.isPlayed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                    color = when {
+                        isActive -> MaterialTheme.colorScheme.onPrimary
+                        episode.isPlayed -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onBackground
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(
                         vertical = dimensionResource(Res.dimen.small_padding)
@@ -644,7 +672,7 @@ fun AnimeEpisodes(
             }
 
             LaunchedEffect(Unit) {
-                if (index == lastPosition && isAndroidTV) {
+                if (index == lastPosition) {
                     "focusRequester: ${lastPosition + 1}".log("AnimeDetailScreen")
                     focusRequester.requestFocus()
                 }
@@ -690,49 +718,91 @@ private fun EpisodeListControl(
     onMoreClick: () -> Unit,
     onChannelClick: () -> Unit,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .offset(y = dimensionResource(id = Res.dimen.large_padding) + 6.dp)
-            .padding(
-                top = dimensionResource(id = Res.dimen.small_padding),
-                end = dimensionResource(id = Res.dimen.small_padding)
-            ),
+    val context = LocalContext.current
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .offset(y = dimensionResource(id = Res.dimen.large_padding) + 16.dp)
+                .padding(
+                    top = dimensionResource(id = Res.dimen.small_padding),
+                    end = dimensionResource(id = Res.dimen.small_padding)
+                ),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isShowChannel) {
-            Text(
-                modifier = Modifier.clickable(onClick = onChannelClick),
-                text = stringResource(Res.string.channel_number, channelIndex + 1),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelMedium
-            )
+            var channelFocused by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        when {
+                            channelFocused -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        }
+                    )
+                    .onFocusChanged { channelFocused = it.isFocused }
+                    .clickable(onClick = onChannelClick)
+                    .padding(horizontal = 12.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = stringResource(Res.string.channel_number, channelIndex + 1),
+                    color = if (channelFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
 
             Spacer(modifier = Modifier.size(12.dp))
         }
-        Text(
-            modifier = Modifier.clickable(onClick = onReverseClick),
-            text = stringResource(id = Res.string.reverse_list),
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.labelMedium
-        )
+
+        var reverseFocused by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    when {
+                        reverseFocused -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    }
+                )
+                .onFocusChanged { reverseFocused = it.isFocused }
+                .clickable(onClick = onReverseClick)
+                .padding(horizontal = 12.dp, vertical = 3.dp)
+        ) {
+            Text(
+                text = stringResource(id = Res.string.reverse_list),
+                color = if (reverseFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
 
         Spacer(modifier = Modifier.size(12.dp))
 
+        var moreFocused by remember { mutableStateOf(false) }
         Row(
-            modifier = Modifier.clickable(onClick = onMoreClick),
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    when {
+                        moreFocused -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    }
+                )
+                .onFocusChanged { moreFocused = it.isFocused }
+                .clickable(onClick = onMoreClick)
+                .padding(horizontal = 12.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = stringResource(id = Res.string.more_episodes),
-                color = MaterialTheme.colorScheme.primary,
+                color = if (moreFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelMedium
             )
             Icon(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
                 contentDescription = stringResource(id = Res.string.more_episodes),
-                tint = MaterialTheme.colorScheme.primary
+                tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -781,6 +851,7 @@ private fun EpisodeBottomSheet(
     onDownloadClick: (index: Int, episode: Episode) -> Unit = { _, _ -> },
 ) {
     val sheetState = rememberModalBottomSheetState()
+    val context = LocalContext.current
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -800,6 +871,10 @@ private fun EpisodeBottomSheet(
             itemsIndexed(
                 items = if (!reverseList) episodes else episodes.reversed(),
                 key = { _, e -> e.url }) { index, episode ->
+                val chipInteractionSource = remember { MutableInteractionSource() }
+                val isChipFocused by chipInteractionSource.collectIsFocusedAsState()
+                val isChipPressed by chipInteractionSource.collectIsPressedAsState()
+                val isChipActive = isChipFocused || isChipPressed
                 SuggestionChip(
                     onClick = {
                         when {
@@ -807,21 +882,26 @@ private fun EpisodeBottomSheet(
                             else -> onEpisodeClick(index, episode)
                         }
                     },
+                    interactionSource = chipInteractionSource,
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = when {
+                            isChipActive -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        labelColor = when {
+                            isChipActive -> MaterialTheme.colorScheme.onPrimary
+                            else -> if (episode.isPlayed || episode.isDownloaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                        }
+                    ),
                     label = {
-
-                        val isPrimaryColor =
-                            if (isDownload) episode.isDownloaded else episode.isPlayed
-
                         Text(
                             modifier = Modifier
                                 .padding(end = dimensionResource(id = Res.dimen.small_padding))
                                 .fillMaxWidth(),
                             text = episode.name,
-                            color = if (isPrimaryColor) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center
                         )
-
                     }
                 )
             }

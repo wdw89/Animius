@@ -122,7 +122,7 @@ fun WeekScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showDomainChangeDialog by remember { mutableStateOf(false) }
     var currentSourceName by remember { mutableStateOf(SourceHolder.currentSourceMode.name) }
-    val isSourceChanged by SourceHolder.isSourceChanged
+    val isSourceChanged by SourceHolder.isSourceChanged.collectAsState()
 
     LaunchedEffect(isSourceChanged) {
         if (isSourceChanged > 0) {

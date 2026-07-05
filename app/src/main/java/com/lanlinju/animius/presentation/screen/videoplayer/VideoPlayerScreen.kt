@@ -216,7 +216,6 @@ fun VideoPlayScreen(
                         )
                 ) {
                     val controlFocusRequester = remember { FocusRequester() }
-                    val isAndroidTV = remember { isAndroidTV(activity) }
 
                     VideoPlayerControl(
                         state = playerState,
@@ -237,7 +236,7 @@ fun VideoPlayScreen(
                             )
                         },
                         onDanmakuClick = { viewModel.setEnabledDanmaku(it) },
-                        modifier = if (isAndroidTV) Modifier.focusRequester(controlFocusRequester) else Modifier,
+                        modifier = Modifier.focusRequester(controlFocusRequester),
                         sliderFocusRequester = sliderFocusRequester
                     )
                 }
@@ -816,13 +815,12 @@ private fun ShowVideoMessage(text: String, onRetryClick: (() -> Unit)? = null) {
         // 重试 Button
         onRetryClick?.let {
             val focusRequester = remember { FocusRequester() }
-            val isAndroidTV = isAndroidTV(LocalContext.current)
             Spacer(modifier = Modifier.padding(vertical = 8.dp))
             OutlinedButton(
                 colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isAndroidTV) MaterialTheme.colorScheme.primary.copy(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(
                         alpha = 0.3f
-                    ) else Color.Unspecified
+                    )
                 ),
                 modifier = Modifier
                     .focusRequester(focusRequester)
@@ -833,9 +831,7 @@ private fun ShowVideoMessage(text: String, onRetryClick: (() -> Unit)? = null) {
             }
 
             LaunchedEffect(Unit) {
-                if (isAndroidTV) {
-                    focusRequester.requestFocus()
-                }
+                focusRequester.requestFocus()
             }
         }
     }
@@ -953,7 +949,6 @@ private fun EpisodeSideSheet(
     onDismissRequest: () -> Unit
 ) {
     val context = LocalContext.current
-    val isAndroidTV = remember { isAndroidTV(context) }
     SideSheet(onDismissRequest = onDismissRequest, widthRatio = 0.38f) {
 
         LazyColumn(
@@ -997,7 +992,7 @@ private fun EpisodeSideSheet(
                 }
 
                 LaunchedEffect(selected) {
-                    if (selected && isAndroidTV) {
+                    if (selected) {
                         focusRequester.requestFocus()
                     }
                 }
