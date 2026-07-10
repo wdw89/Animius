@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +54,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -70,6 +72,8 @@ import com.lanlinju.animius.util.KEY_DYNAMIC_IMAGE_COLOR
 import com.lanlinju.animius.util.SettingsPreferences
 import com.lanlinju.animius.util.catpucchinLatte
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.handleDPadKeyEvents
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,14 +89,14 @@ fun AppearanceScreen(
                 title = { Text(text = stringResource(id = R.string.appearance_settings)) },
                 scrollBehavior = topBarBehavior,
                 navigationIcon = {
-                    var backFocused by remember { mutableStateOf(false) }
+                    val (backFocused, backFocusModifier) = rememberIsFocused()
                     IconButton(
                         onClick = onBackClick,
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = if (backFocused) MaterialTheme.colorScheme.primary
                             else Color.Transparent
                         ),
-                        modifier = Modifier.onFocusChanged { backFocused = it.isFocused }
+                        modifier = backFocusModifier
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -113,7 +117,18 @@ fun AppearanceScreen(
                 .verticalScroll(rememberScrollState()), // 先nestedScroll，然后verticalScroll的顺序
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ThemeModeSettings(modifier = Modifier.padding(start = 24.dp))
+            val themeFocusRequester = remember { FocusRequester() }
+            val dynamicColorFocusRequester = remember { FocusRequester() }
+            val firstColorFocusRequester = remember { FocusRequester() }
+
+            ThemeModeSettings(
+                modifier = Modifier
+                    .padding(start = 24.dp)
+                    .handleDPadKeyEvents(
+                        onDown = { firstColorFocusRequester.requestFocus() }
+                    ),
+                focusRequester = themeFocusRequester
+            )
 
             val selectedColor by SettingsPreferences.customColor.collectAsState()
             val dynamicColor by SettingsPreferences.dynamicColor.collectAsState()
@@ -122,6 +137,7 @@ fun AppearanceScreen(
             ColorBall(
                 selectedColor = selectedColor,
                 isCheckVisible = !dynamicColor,
+                firstItemFocusRequester = firstColorFocusRequester,
                 onSelect = {
                     isDynamicImageColor = false
                     SettingsPreferences.changeDynamicColor(false)
@@ -146,6 +162,10 @@ fun AppearanceScreen(
                     summary = stringResource(id = R.string.dynamic_color_description),
                     painter = rememberVectorPainter(image = Icons.Outlined.Colorize),
                     checked = dynamicColor,
+                    focusRequester = dynamicColorFocusRequester,
+                    modifier = Modifier.handleDPadKeyEvents(
+                        onUp = { firstColorFocusRequester.requestFocus() }
+                    ),
                     onCheckedChange = {
                         isDynamicImageColor = false
                         SettingsPreferences.changeDynamicColor(it)
@@ -169,7 +189,10 @@ fun AppearanceScreen(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun ThemeModeSettings(modifier: Modifier = Modifier) {
+private fun ThemeModeSettings(
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+) {
     Column(modifier = modifier) {
         val options =
             SettingsPreferences.ThemeMode.entries.map { stringResource(id = it.resId) }
@@ -185,7 +208,7 @@ private fun ThemeModeSettings(modifier: Modifier = Modifier) {
 
         SingleChoiceSegmentedButtonRow {
             options.forEachIndexed { index, label ->
-                var isFocused by remember { mutableStateOf(false) }
+                val (isFocused, focusModifier) = rememberIsFocused()
                 SegmentedButton(
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
@@ -207,7 +230,12 @@ private fun ThemeModeSettings(modifier: Modifier = Modifier) {
                         inactiveContentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                         else SegmentedButtonDefaults.colors().inactiveContentColor
                     ),
-                    modifier = Modifier.onFocusChanged { isFocused = it.isFocused }
+                    modifier = focusModifier
+                        .then(
+                            if (index == 0 && focusRequester != null) {
+                                Modifier.focusRequester(focusRequester)
+                            } else Modifier
+                        )
                 ) {
                     Text(label)
                 }
@@ -225,6 +253,7 @@ fun ColorBall(
     selectedColor: Int,
     isCheckVisible: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    firstItemFocusRequester: FocusRequester? = null,
     onSelect: (Int) -> Unit,
 ) {
     LazyRow(
@@ -234,11 +263,11 @@ fun ColorBall(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 24.dp),
     ) {
-        items(catpucchinLatte) { color ->
+        itemsIndexed(catpucchinLatte) { index, color ->
             val isSelected = color == selectedColor && isCheckVisible
             val containerSize by animateDpAsState(targetValue = if (isSelected) 28.dp else 0.dp)
             val iconSize by animateDpAsState(targetValue = if (isSelected) 16.dp else 0.dp)
-            var isFocused by remember { mutableStateOf(false) }
+            val (isFocused, focusModifier) = rememberIsFocused()
 
             Box(
                 modifier = Modifier
@@ -246,10 +275,15 @@ fun ColorBall(
                     .clip(CircleShape)
                     .background(Color(color))
                     .then(
-                        if (isFocused) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        if (isFocused) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                         else Modifier
                     )
-                    .onFocusChanged { isFocused = it.isFocused }
+                    .then(focusModifier)
+                    .then(
+                        if (index == 0 && firstItemFocusRequester != null) {
+                            Modifier.focusRequester(firstItemFocusRequester!!)
+                        } else Modifier
+                    )
                     .clickable { onSelect(color) },
                 contentAlignment = Alignment.Center
             ) {
@@ -280,6 +314,8 @@ fun SwitchPref(
     summary: String? = null,
     checked: Boolean,
     painter: Painter? = null,
+    focusRequester: FocusRequester? = null,
+    modifier: Modifier = Modifier,
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
     onCheckedChange: (Boolean) -> Unit = {}
 ) {
@@ -288,11 +324,15 @@ fun SwitchPref(
     } else {
         null
     }
-    var isFocused by remember { mutableStateOf(false) }
+    val (isFocused, focusModifier) = rememberIsFocused()
     ListItem(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .onFocusChanged { isFocused = it.isFocused }
+            .then(focusModifier)
+            .then(
+                if (focusRequester != null) Modifier.focusRequester(focusRequester)
+                else Modifier
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = LocalIndication.current

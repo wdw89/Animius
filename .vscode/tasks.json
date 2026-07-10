@@ -1,0 +1,41 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "install & launch (debug)",
+            "type": "shell",
+            "command": "./gradlew :app:installDebug && adb shell am start -n com.lanlinju.animius/.MainActivity",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "JAVA_HOME": "C:/Program Files/Android/Android Studio/jbr"
+                }
+            }
+        },
+        {
+            "label": "install & launch (debug, single device)",
+            "type": "shell",
+            "command": "./gradlew :app:installDebug && adb shell am start -n com.lanlinju.animius/.MainActivity 2>&1 | head -1",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "JAVA_HOME": "C:/Program Files/Android/Android Studio/jbr"
+                }
+            }
+        }
+    ]
+}
