@@ -425,7 +425,7 @@ private fun HomeTile(
             modifier = Modifier
                 .padding(
                     start = dimensionResource(Res.dimen.large_padding),
-                    top = 64.dp
+                    top = if (isWideScreen) 8.dp else 64.dp
                 ),
             verticalArrangement = Arrangement.spacedBy((-8).dp)
         ) {
