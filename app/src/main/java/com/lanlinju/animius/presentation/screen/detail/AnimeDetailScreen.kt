@@ -447,25 +447,47 @@ private fun TopAppBar(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
                 ) {
+                    var downloadFocused by remember { mutableStateOf(false) }
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.download)) },
+                        text = {
+                            Text(
+                                text = stringResource(id = R.string.download),
+                                color = if (downloadFocused) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
                         onClick = {
                             expanded = false
                             onDownloadClick()
                         },
+                        modifier = Modifier
+                            .onFocusChanged { downloadFocused = it.isFocused }
+                            .then(
+                                if (downloadFocused) Modifier.background(MaterialTheme.colorScheme.primary)
+                                else Modifier
+                            ),
                         leadingIcon = {
                             Icon(
                                 Icons.AutoMirrored.Rounded.ArrowForward,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .rotate(90f),
-                                contentDescription = stringResource(id = R.string.download)
+                                contentDescription = stringResource(id = R.string.download),
+                                tint = if (downloadFocused) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     )
                     val uriHandler = LocalUriHandler.current
+                    var websiteFocused by remember { mutableStateOf(false) }
                     DropdownMenuItem(
-                        text = { Text(stringResource(id = R.string.website_address)) },
+                        text = {
+                            Text(
+                                text = stringResource(id = R.string.website_address),
+                                color = if (websiteFocused) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
                         onClick = {
                             expanded = false
                             // gogoanime 的detailUrl包含域名地址，其他的不包含，所以需要判断一下
@@ -473,10 +495,18 @@ private fun TopAppBar(
                                 if (detailUrl.contains("http")) detailUrl else "${SourceHolder.currentSource.baseUrl}$detailUrl"
                             uriHandler.openUri(url)
                         },
+                        modifier = Modifier
+                            .onFocusChanged { websiteFocused = it.isFocused }
+                            .then(
+                                if (websiteFocused) Modifier.background(MaterialTheme.colorScheme.primary)
+                                else Modifier
+                            ),
                         leadingIcon = {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_domain),
-                                contentDescription = stringResource(id = R.string.website_address)
+                                contentDescription = stringResource(id = R.string.website_address),
+                                tint = if (websiteFocused) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     )
@@ -948,13 +978,22 @@ fun ChannelSelectorDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(channels.size) { index ->
+                    var itemFocused by remember { mutableStateOf(false) }
                     Text(
                         text = stringResource(Res.string.channel_number, index + 1),
-                        color = if (index == channelIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                        color = when {
+                            itemFocused -> MaterialTheme.colorScheme.onPrimary
+                            index == channelIndex -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onBackground
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(MaterialTheme.shapes.small)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .background(
+                                if (itemFocused) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .onFocusChanged { itemFocused = it.isFocused }
                             .clickable {
                                 onChannelClick(index, channels[index]!!)
                             }
@@ -963,14 +1002,23 @@ fun ChannelSelectorDialog(
                 }
             }
         },
+        confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val isActive = isFocused || isPressed
+            TextButton(
+                onClick = onDismissRequest,
+                interactionSource = interactionSource,
+                colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    else Color.Transparent,
+                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.primary
+                )
+            ) {
                 Text(text = stringResource(id = R.string.cancel))
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = stringResource(id = R.string.confirm))
             }
         }
     )

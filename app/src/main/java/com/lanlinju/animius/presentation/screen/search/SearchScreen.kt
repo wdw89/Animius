@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -131,20 +134,42 @@ fun SearchScreen(
             title = { Text("需要验证码验证") },
             text = { Text("搜索时遇到验证码，请完成验证后重试") },
             confirmButton = {
+                val interactionSource = remember { MutableInteractionSource() }
+                val isFocused by interactionSource.collectIsFocusedAsState()
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val isActive = isFocused || isPressed
                 TextButton(
                     onClick = {
                         viewModel.clearNeedCaptcha()
                         captchaLauncher.launch(
                             CaptchaWebViewActivity.createIntent(context, url)
                         )
-                    }
+                    },
+                    interactionSource = interactionSource,
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                        else Color.Transparent,
+                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.primary
+                    )
                 ) {
                     Text("去验证")
                 }
             },
             dismissButton = {
+                val interactionSource = remember { MutableInteractionSource() }
+                val isFocused by interactionSource.collectIsFocusedAsState()
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val isActive = isFocused || isPressed
                 TextButton(
-                    onClick = { viewModel.clearNeedCaptcha() }
+                    onClick = { viewModel.clearNeedCaptcha() },
+                    interactionSource = interactionSource,
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                        else Color.Transparent,
+                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.primary
+                    )
                 ) {
                     Text("取消")
                 }

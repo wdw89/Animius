@@ -3,6 +3,8 @@ package com.lanlinju.videoplayer.component
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -20,9 +22,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
@@ -39,15 +48,42 @@ fun Slider(
     secondTrackColor: Color =Color.LightGray.copy(alpha = 0.78f),
     isSeeking: Boolean = false,
     focusRequester: FocusRequester = remember { FocusRequester() },
+    durationMs: Long = 0L,
 ) {
     val isAnimHeight = remember(isSeeking) { mutableStateOf(isSeeking) }
     val animHeight = animateDpAsState(
         targetValue = if (isAnimHeight.value) 4.dp else 2.dp,
         animationSpec = tween()
     )
+    var isFocused by remember { mutableStateOf(false) }
+    val thumbSize by animateDpAsState(
+        targetValue = if (isFocused || isSeeking) 20.dp else 15.dp,
+        animationSpec = tween(150)
+    )
 
     Box(
         modifier = modifier
+            .focusRequester(focusRequester)
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    val stepFraction = if (durationMs > 0) 15000f / durationMs else 0.02f
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            onValueChange((value + stepFraction).coerceIn(0f, 1f))
+                            onValueChangeFinished()
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            onValueChange((value - stepFraction).coerceIn(0f, 1f))
+                            onValueChangeFinished()
+                            true
+                        }
+                        else -> false
+                    }
+                } else false
+            }
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { offset ->
                     isAnimHeight.value = true
@@ -115,11 +151,12 @@ fun Slider(
                 .clip(CircleShape)
                 .align(
                     BiasAlignment(
-                        horizontalBias = (value * 2) - 1f, // -1 start | 0 center | 1 end
+                        horizontalBias = (value * 2) - 1f,
                         verticalBias = 0f
                     )
                 )
-                .size(15.dp)
+                .size(thumbSize)
+                .border(if (isFocused) 2.dp else 0.dp, Color.White, CircleShape)
                 .background(color)
         )
     }

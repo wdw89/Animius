@@ -2,6 +2,9 @@ package com.lanlinju.animius.presentation.screen.crash
 
 import android.content.ClipData
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Newspaper
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
@@ -26,12 +30,15 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -146,26 +153,59 @@ fun InfoScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val acceptInteractionSource = remember { MutableInteractionSource() }
+                    val acceptFocused by acceptInteractionSource.collectIsFocusedAsState()
+                    val acceptPressed by acceptInteractionSource.collectIsPressedAsState()
+                    val acceptActive = acceptFocused || acceptPressed
                     Button(
                         modifier = Modifier.weight(1f),
                         enabled = canAccept,
                         onClick = onAcceptClick,
+                        interactionSource = acceptInteractionSource,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (acceptActive) MaterialTheme.colorScheme.primary
+                            else ButtonDefaults.buttonColors().containerColor,
+                            contentColor = if (acceptActive) MaterialTheme.colorScheme.onPrimary
+                            else ButtonDefaults.buttonColors().contentColor
+                        )
                     ) {
                         Text(text = acceptText)
                     }
                     if (onCopyClick != null) {
+                        val copyInteractionSource = remember { MutableInteractionSource() }
+                        val copyFocused by copyInteractionSource.collectIsFocusedAsState()
+                        val copyPressed by copyInteractionSource.collectIsPressedAsState()
+                        val copyActive = copyFocused || copyPressed
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = onCopyClick,
+                            interactionSource = copyInteractionSource,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (copyActive) MaterialTheme.colorScheme.primary
+                                else Color.Transparent,
+                                contentColor = if (copyActive) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.primary
+                            )
                         ) {
                             Text(text = logText)
                         }
                     }
                 }
                 if (rejectText != null && onRejectClick != null) {
+                    val rejectInteractionSource = remember { MutableInteractionSource() }
+                    val rejectFocused by rejectInteractionSource.collectIsFocusedAsState()
+                    val rejectPressed by rejectInteractionSource.collectIsPressedAsState()
+                    val rejectActive = rejectFocused || rejectPressed
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = onRejectClick,
+                        interactionSource = rejectInteractionSource,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (rejectActive) MaterialTheme.colorScheme.primary
+                            else Color.Transparent,
+                            contentColor = if (rejectActive) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.primary
+                        )
                     ) {
                         Text(text = rejectText)
                     }

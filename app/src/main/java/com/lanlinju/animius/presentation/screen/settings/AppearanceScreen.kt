@@ -3,8 +3,11 @@ package com.lanlinju.animius.presentation.screen.settings
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,8 +31,10 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -42,12 +47,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -78,10 +85,20 @@ fun AppearanceScreen(
                 title = { Text(text = stringResource(id = R.string.appearance_settings)) },
                 scrollBehavior = topBarBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    var backFocused by remember { mutableStateOf(false) }
+                    IconButton(
+                        onClick = onBackClick,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = if (backFocused) MaterialTheme.colorScheme.primary
+                            else Color.Transparent
+                        ),
+                        modifier = Modifier.onFocusChanged { backFocused = it.isFocused }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(id = R.string.back)
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = if (backFocused) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -168,6 +185,7 @@ private fun ThemeModeSettings(modifier: Modifier = Modifier) {
 
         SingleChoiceSegmentedButtonRow {
             options.forEachIndexed { index, label ->
+                var isFocused by remember { mutableStateOf(false) }
                 SegmentedButton(
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
@@ -178,7 +196,18 @@ private fun ThemeModeSettings(modifier: Modifier = Modifier) {
                         val themeMode = SettingsPreferences.ThemeMode.values()[index]
                         SettingsPreferences.changeThemeMode(themeMode)
                     },
-                    selected = index == selectedIndex
+                    selected = index == selectedIndex,
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = if (isFocused) MaterialTheme.colorScheme.primary
+                        else SegmentedButtonDefaults.colors().activeContainerColor,
+                        activeContentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
+                        else SegmentedButtonDefaults.colors().activeContentColor,
+                        inactiveContainerColor = if (isFocused) MaterialTheme.colorScheme.primary
+                        else SegmentedButtonDefaults.colors().inactiveContainerColor,
+                        inactiveContentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
+                        else SegmentedButtonDefaults.colors().inactiveContentColor
+                    ),
+                    modifier = Modifier.onFocusChanged { isFocused = it.isFocused }
                 ) {
                     Text(label)
                 }
@@ -209,12 +238,18 @@ fun ColorBall(
             val isSelected = color == selectedColor && isCheckVisible
             val containerSize by animateDpAsState(targetValue = if (isSelected) 28.dp else 0.dp)
             val iconSize by animateDpAsState(targetValue = if (isSelected) 16.dp else 0.dp)
+            var isFocused by remember { mutableStateOf(false) }
 
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(Color(color))
+                    .then(
+                        if (isFocused) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        else Modifier
+                    )
+                    .onFocusChanged { isFocused = it.isFocused }
                     .clickable { onSelect(color) },
                 contentAlignment = Alignment.Center
             ) {
@@ -253,20 +288,37 @@ fun SwitchPref(
     } else {
         null
     }
+    var isFocused by remember { mutableStateOf(false) }
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = LocalIndication.current
             ) {
                 onCheckedChange(!checked)
             },
-        headlineContent = { Text(text = title, style = titleStyle) },
+        colors = ListItemDefaults.colors(
+            containerColor = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
+            else Color.Transparent
+        ),
+        headlineContent = {
+            Text(
+                text = title,
+                style = titleStyle,
+                color = if (isFocused) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurface
+            )
+        },
         leadingContent = leadingContent,
         supportingContent = {
             if (summary != null) {
-                Text(text = summary)
+                Text(
+                    text = summary,
+                    color = if (isFocused) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         },
         trailingContent = {

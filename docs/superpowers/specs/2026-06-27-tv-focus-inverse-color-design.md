@@ -1,8 +1,8 @@
-# TV Focus Inverse Color — Implementation Spec
+# Focus Inverse Color — Implementation Spec
 
 ## Problem
 
-On Android TV, buttons in the anime detail page used a default dimming effect when focused via remote control, making it hard to distinguish the focused element. The goal was to replace this with a clear inverse-color effect (like Compose for TV buttons): focused button gets `primary` background with `onPrimary` content.
+Buttons across the app (detail page, search page, video player, etc.) used a default dimming or no effect when focused via D-pad/remote, making it hard to distinguish the focused element. The goal was to replace this with a clear inverse-color effect: focused button gets `primary` background with `onPrimary` content, applied uniformly across all devices (phone, tablet, TV).
 
 ## Affected Components
 
@@ -33,7 +33,7 @@ Component(
     interactionSource = interactionSource,
     colors = ...(
         containerColor = when {
-            isAndroidTV && isActive -> MaterialTheme.colorScheme.primary
+            isActive -> MaterialTheme.colorScheme.primary
             else -> defaultColor
         }
     )
@@ -53,18 +53,18 @@ var isFocused by remember { mutableStateOf(false) }
 
 Component(
     modifier = Modifier
-        .onFocusChanged { if (isAndroidTV) isFocused = it.isFocused }
+        .onFocusChanged { isFocused = it.isFocused }
         .clickable(onClick = ...),
     colors = ...(
         containerColor = when {
-            isAndroidTV && isFocused -> MaterialTheme.colorScheme.primary
+            isFocused -> MaterialTheme.colorScheme.primary
             else -> defaultColor
         }
     )
 )
 ```
 
-**On non-TV devices**: `onFocusChanged` is harmless — it simply never fires without focus navigation.
+**On touch-only devices (phones/tablets)**: `onFocusChanged` is harmless — it simply never fires without focus navigation (keyboard, D-pad, TV remote).
 
 ### Color Rules
 
@@ -72,8 +72,10 @@ All components follow the same color mapping:
 
 | State | Background | Content (icon/text) |
 |---|---|---|
-| Not focused (default) | `surfaceVariant.copy(alpha = 0.45f)` or component default | `primary` or component default |
-| Focused / Pressed (TV only) | `MaterialTheme.colorScheme.primary` | `MaterialTheme.colorScheme.onPrimary` |
+| Not focused (default) | `surfaceVariant.copy(alpha = 0.45f)` / `Color.Transparent` or component default | `primary` / `onSurface` or component default |
+| Focused / Pressed | `MaterialTheme.colorScheme.primary` | `MaterialTheme.colorScheme.onPrimary` |
+
+> Note: Components on dark/overlay backgrounds (e.g. `TopAppBar` buttons over a banner) may use `Color.Transparent` + `White.copy(alpha = 0.85f)` as the default unfocused state instead of `surfaceVariant`.
 
 ### Background Addition
 
@@ -86,7 +88,7 @@ Components that originally had no background (`Text` with `clickable`:
 
 ### Pitfalls Encountered
 
-1. **`.let {}` with `Modifier`**: Using `.let { if (cond) it.focusable() else it }` broke click handling. The plain `Modifier` returned from the else branch caused unexpected behavior. Fixed by using direct modifier calls or conditional `.onFocusChanged` that's always applied but guarded inside the lambda.
+1. **`.let {}` with `Modifier`**: Using `.let { if (cond) it.focusable() else it }` broke click handling. The plain `Modifier` returned from the else branch caused unexpected behavior. Fixed by using direct modifier calls instead of conditional `.let` chains.
 
 2. **Redundant `.focusable()`**: Adding explicit `.focusable()` before `.clickable()` can interfere with `clickable`'s internal focus handling. Since `clickable` (and button components) already add `focusable()`, never add it manually.
 
@@ -94,11 +96,8 @@ Components that originally had no background (`Text` with `clickable`:
 
 4. **Missing `interactionSource` parameter**: Creating a `MutableInteractionSource` and using `collectIsFocusedAsState()` on it is useless if the component doesn't receive that `interactionSource` parameter. Always pass it explicitly.
 
-## TV Detection
+## Focus Behavior Note
 
-```
-val isAndroidTV = com.lanlinju.animius.util.isAndroidTV(context)
-// Returns true on Android TV devices, false on phones/tablets
-```
+The inverse color effects apply on **all devices** (phone, tablet, TV) whenever a component gains focus via D-pad, keyboard, or TV remote. On touch-only devices, `onFocusChanged` never fires during normal touch interaction, so the effects are effectively invisible — touch behavior is completely unchanged.
 
-All focus inverse color effects are gated on `isAndroidTV` so phone/tablet behavior is unchanged.
+This means no `isAndroidTV` guards are needed. The `.onFocusChanged` modifier and `interactionSource.collectIsFocusedAsState()` are harmless on non-TV devices.

@@ -26,6 +26,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -62,6 +65,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -307,15 +311,38 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        OutlinedButton(onClick = onBackClick) {
-            Text(text = stringResource(id = R.string.back), color = Color.White)
+        val backInteractionSource = remember { MutableInteractionSource() }
+        val backFocused by backInteractionSource.collectIsFocusedAsState()
+        val backPressed by backInteractionSource.collectIsPressedAsState()
+        val backActive = backFocused || backPressed
+        OutlinedButton(
+            onClick = onBackClick,
+            interactionSource = backInteractionSource,
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (backActive) MaterialTheme.colorScheme.primary
+                else Color.Transparent,
+                contentColor = if (backActive) MaterialTheme.colorScheme.onPrimary
+                else Color.White
+            )
+        ) {
+            Text(text = stringResource(id = R.string.back))
         }
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        OutlinedButton(onClick = { viewModel.retry() }) {
-            Text(
-                text = stringResource(id = R.string.retry),
-                color = MaterialTheme.colorScheme.primary
+        val retryInteractionSource = remember { MutableInteractionSource() }
+        val retryFocused by retryInteractionSource.collectIsFocusedAsState()
+        val retryPressed by retryInteractionSource.collectIsPressedAsState()
+        val retryActive = retryFocused || retryPressed
+        OutlinedButton(
+            onClick = { viewModel.retry() },
+            interactionSource = retryInteractionSource,
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (retryActive) MaterialTheme.colorScheme.primary
+                else Color.Transparent,
+                contentColor = if (retryActive) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.primary
             )
+        ) {
+            Text(text = stringResource(id = R.string.retry))
         }
     }
 }
@@ -442,19 +469,39 @@ private fun OptionsContent(
     onForwardClick: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var forwardFocused by remember { mutableStateOf(false) }
+    var moreFocused by remember { mutableStateOf(false) }
     Row {
-        IconButton(onClick = onForwardClick) {
+        IconButton(
+            onClick = onForwardClick,
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = if (forwardFocused) MaterialTheme.colorScheme.primary
+                else Color.Transparent
+            ),
+            modifier = Modifier.onFocusChanged { forwardFocused = it.isFocused }
+        ) {
             Icon(
                 imageVector = Icons.Rounded.Forward85,
-                contentDescription = "Forward 85s"
+                contentDescription = "Forward 85s",
+                tint = if (forwardFocused) MaterialTheme.colorScheme.onPrimary
+                else Color.White
             )
         }
 
         Box {
-            IconButton(onClick = { expanded = true }) {
+            IconButton(
+                onClick = { expanded = true },
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (moreFocused) MaterialTheme.colorScheme.primary
+                    else Color.Transparent
+                ),
+                modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
+            ) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = null
+                    contentDescription = null,
+                    tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary
+                    else Color.White
                 )
             }
 
@@ -462,26 +509,48 @@ private fun OptionsContent(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
+                var externalPlayFocused by remember { mutableStateOf(false) }
                 DropdownMenuItem(
                     text = {
-                        Text(text = stringResource(id = R.string.external_play))
+                        Text(
+                            text = stringResource(id = R.string.external_play),
+                            color = if (externalPlayFocused) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
                     },
                     onClick = {
                         expanded = false
                         openExternalPlayer(video.url)
-                    }
+                    },
+                    modifier = Modifier
+                        .onFocusChanged { externalPlayFocused = it.isFocused }
+                        .then(
+                            if (externalPlayFocused) Modifier.background(MaterialTheme.colorScheme.primary)
+                            else Modifier
+                        )
                 )
 
+                var autoPlayFocused by remember { mutableStateOf(false) }
                 DropdownMenuItem(
                     text = {
                         Text(
                             text = stringResource(R.string.auto_continue_play),
-                            color = if (isAutoContinuePlayEnabled) MaterialTheme.colorScheme.primary else Color.Black
+                            color = when {
+                                autoPlayFocused -> MaterialTheme.colorScheme.onPrimary
+                                isAutoContinuePlayEnabled -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                         )
                     },
                     onClick = {
                         onAutoContinuePlayClick(!isAutoContinuePlayEnabled)
-                    }
+                    },
+                    modifier = Modifier
+                        .onFocusChanged { autoPlayFocused = it.isFocused }
+                        .then(
+                            if (autoPlayFocused) Modifier.background(MaterialTheme.colorScheme.primary)
+                            else Modifier
+                        )
                 )
             }
         }
@@ -815,16 +884,21 @@ private fun ShowVideoMessage(text: String, onRetryClick: (() -> Unit)? = null) {
         // 重试 Button
         onRetryClick?.let {
             val focusRequester = remember { FocusRequester() }
+            val interactionSource = remember { MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val isActive = isFocused || isPressed
             Spacer(modifier = Modifier.padding(vertical = 8.dp))
             OutlinedButton(
                 colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(
-                        alpha = 0.3f
-                    )
+                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.primary
                 ),
                 modifier = Modifier
-                    .focusRequester(focusRequester)
-                    .focusable(),
+                    .focusRequester(focusRequester),
+                interactionSource = interactionSource,
                 onClick = it
             ) {
                 Text(text = stringResource(id = R.string.retry))
@@ -958,7 +1032,10 @@ private fun EpisodeSideSheet(
         ) {
             itemsIndexed(episodes) { index, episode ->
                 val focusRequester = remember { FocusRequester() }
-                var isFocused by remember { mutableStateOf(false) }
+                val interactionSource = remember { MutableInteractionSource() }
+                val isFocused by interactionSource.collectIsFocusedAsState()
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val isActive = isFocused || isPressed
                 val selected = index == selectedEpisodeIndex
 
                 OutlinedButton(
@@ -967,14 +1044,21 @@ private fun EpisodeSideSheet(
                     shape = RoundedCornerShape(4.dp),
                     border = BorderStroke(
                         1.0.dp,
-                        if (selected) MaterialTheme.colorScheme.primary
+                        if (isActive) MaterialTheme.colorScheme.primary
+                        else if (selected) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.outline.copy(0.5f)
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                        else Color.Transparent,
+                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                        else if (selected) MaterialTheme.colorScheme.primary
+                        else Color.LightGray
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onFocusChanged(onFocusChanged = { isFocused = it.isFocused })
-                        .focusRequester(focusRequester)
-                        .focusable()
+                        .focusRequester(focusRequester),
+                    interactionSource = interactionSource
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         if (selected) {
@@ -983,7 +1067,6 @@ private fun EpisodeSideSheet(
 
                         Text(
                             text = episode.name,
-                            color = if (selected) MaterialTheme.colorScheme.primary else Color.LightGray,
                             style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             modifier = Modifier.align(Alignment.Center)

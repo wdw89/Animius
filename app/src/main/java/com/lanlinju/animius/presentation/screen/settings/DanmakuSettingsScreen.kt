@@ -1,6 +1,9 @@
 package com.lanlinju.animius.presentation.screen.settings
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,11 +16,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -30,6 +36,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -67,10 +80,20 @@ fun DanmakuSettingsScreen(onBackClick: () -> Unit = {}) {
                 title = { Text(text = stringResource(id = R.string.danmaku_settings)) },
                 scrollBehavior = topBarBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    var backFocused by remember { mutableStateOf(false) }
+                    IconButton(
+                        onClick = onBackClick,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = if (backFocused) MaterialTheme.colorScheme.primary
+                            else Color.Transparent
+                        ),
+                        modifier = Modifier.onFocusChanged { backFocused = it.isFocused }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(id = R.string.back)
+                            contentDescription = stringResource(id = R.string.back),
+                            tint = if (backFocused) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -160,11 +183,22 @@ fun DanmakuFontPreview(
 
 @Composable
 fun ResetButton(onReset: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isActive = isFocused || isPressed
     Button(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        onClick = onReset
+        onClick = onReset,
+        interactionSource = interactionSource,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isActive) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface
+        )
     ) {
         Text(text = stringResource(R.string.reset_default))
     }
@@ -211,7 +245,8 @@ fun DanmakuSliders(
         onValueChange = { alpha = it },
         onValueChangeFinished = {
             onConfigChange(config.copy(alpha = alpha))
-        }
+        },
+        dpadStep = 0.05f
     )
 
     var fontSize by remember(config) { mutableFloatStateOf(config.fontSize / defaultDanmakuStyle.fontSize.value) }
@@ -225,7 +260,8 @@ fun DanmakuSliders(
                 config.copy(fontSize = fontSize * defaultDanmakuStyle.fontSize.value)
             )
         },
-        valueLabel = "${(fontSize * 100).roundToInt()}%"
+        valueLabel = "${(fontSize * 100).roundToInt()}%",
+        dpadStep = 0.05f
     )
 
     var strokeWidth by remember(config) {
@@ -242,6 +278,7 @@ fun DanmakuSliders(
         valueRange = 0f..2f,
         title = stringResource(R.string.danmaku_stroke_width),
         valueLabel = "${(strokeWidth * 100).roundToInt()}%",
+        dpadStep = 0.1f
     )
 
     var fontWeight by remember(config) { mutableStateOf(config.fontWeight.toFloat()) }
@@ -270,6 +307,7 @@ fun DanmakuSliders(
         valueRange = 0.2f..3f,
         title = stringResource(R.string.danmaku_speed),
         valueLabel = "${(speed * 100).roundToInt()}%",
+        dpadStep = 0.1f
     )
 
     var displayArea by remember(config) {
@@ -335,16 +373,34 @@ fun SliderItem(
     onValueChangeFinished: (() -> Unit)? = null,
     valueLabel: String = "",
     titleStyle: TextStyle = MaterialTheme.typography.titleMedium,
+    dpadStep: Float = Float.NaN,
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     ListItem(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused },
+        colors = ListItemDefaults.colors(
+            containerColor = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
+            else Color.Transparent
+        ),
         headlineContent = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = title, style = titleStyle)
-                Text(text = valueLabel, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = title,
+                    style = titleStyle,
+                    color = if (isFocused) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = valueLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isFocused) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         },
         supportingContent = {
@@ -354,6 +410,27 @@ fun SliderItem(
                 onValueChangeFinished = onValueChangeFinished,
                 valueRange = valueRange,
                 steps = steps,
+                modifier = Modifier.onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        val range = valueRange.endInclusive - valueRange.start
+                        val step = if (!dpadStep.isNaN()) dpadStep
+                        else if (steps > 0) range / (steps + 1)
+                        else range / 20f
+                        when (event.key) {
+                            Key.DirectionRight -> {
+                                onValueChange((value + step).coerceIn(valueRange))
+                                onValueChangeFinished?.invoke()
+                                true
+                            }
+                            Key.DirectionLeft -> {
+                                onValueChange((value - step).coerceIn(valueRange))
+                                onValueChangeFinished?.invoke()
+                                true
+                            }
+                            else -> false
+                        }
+                    } else false
+                }
             )
         },
     )

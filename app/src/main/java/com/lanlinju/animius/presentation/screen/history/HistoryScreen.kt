@@ -1,6 +1,9 @@
 package com.lanlinju.animius.presentation.screen.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,8 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,6 +36,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -179,8 +186,21 @@ fun HistoryItem(
 fun DeleteHistoryButton(
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick) {
-        Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete")
+    var isFocused by remember { mutableStateOf(false) }
+    IconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = if (isFocused) MaterialTheme.colorScheme.primary
+            else Color.Transparent
+        ),
+        modifier = Modifier.onFocusChanged { isFocused = it.isFocused }
+    ) {
+        Icon(
+            Icons.Outlined.DeleteOutline,
+            contentDescription = "Delete",
+            tint = if (isFocused) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -195,15 +215,41 @@ fun DeleteAllHistoriesDialog(
         title = { Text(text = stringResource(R.string.clear_all_histories)) },
         text = { Text(text = stringResource(R.string.are_you_sure_you_want_to_clear_all_histories)) },
         confirmButton = {
-            TextButton(onClick = {
-                onDismissRequest()
-                onDeleteAllHistories()
-            }) {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val isActive = isFocused || isPressed
+            TextButton(
+                onClick = {
+                    onDismissRequest()
+                    onDeleteAllHistories()
+                },
+                interactionSource = interactionSource,
+                colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    else Color.Transparent,
+                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.primary
+                )
+            ) {
                 Text(stringResource(id = R.string.confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isFocused by interactionSource.collectIsFocusedAsState()
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val isActive = isFocused || isPressed
+            TextButton(
+                onClick = onDismissRequest,
+                interactionSource = interactionSource,
+                colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    else Color.Transparent,
+                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.primary
+                )
+            ) {
                 Text(stringResource(id = R.string.cancel))
             }
         }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,12 +23,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +43,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import com.lanlinju.videoplayer.icons.Fullscreen
 import com.lanlinju.videoplayer.icons.FullscreenExit
@@ -120,9 +127,18 @@ private fun ControlHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        var backFocused by remember { mutableStateOf(false) }
         IconButton(
-            modifier = Modifier.size(BigIconButtonSize),
-            onClick = { onBackClick?.invoke() }
+            modifier = Modifier
+                .size(MediumIconButtonSize)
+                .onFocusChanged { backFocused = it.isFocused },
+            onClick = { onBackClick?.invoke() },
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = if (backFocused) MaterialTheme.colorScheme.primary
+                else Color.Transparent,
+                contentColor = if (backFocused) MaterialTheme.colorScheme.onPrimary
+                else Color.White
+            )
         ) {
             Icon(imageVector = Icons.Rounded.ArrowBackIos, contentDescription = null)
         }
@@ -193,6 +209,7 @@ private fun BottomControlBar(
             isSeeking = state.isSeeking.value,
             color = progressLineColor,
             focusRequester = sliderFocusRequester,
+            durationMs = state.videoDurationMs.value,
         )
 
         if (!state.isSeeking.value) {
@@ -337,13 +354,18 @@ fun AdaptiveTextButton(
     color: Color = LocalContentColor.current,
     style: TextStyle = MaterialTheme.typography.bodyMedium
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isActive = isFocused || isPressed
     AdaptiveIconButton(
         modifier = modifier.size(MediumIconButtonSize),
-        onClick = onClick
+        onClick = onClick,
+        interactionSource = interactionSource
     ) {
         Text(
             text = text,
-            color = color,
+            color = if (isActive) MaterialTheme.colorScheme.onPrimary else color,
             style = style,
         )
     }
@@ -358,11 +380,20 @@ private fun AdaptiveIconButton(
     enabledIndication: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isActive = isFocused || isPressed
     IconButton(
         onClick = onClick,
         modifier = modifier.size(MediumIconButtonSize),
         enabled = enabled,
         interactionSource = interactionSource,
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = if (isActive) MaterialTheme.colorScheme.primary
+            else Color.Transparent,
+            contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+            else LocalContentColor.current
+        )
     ) {
         content()
     }
