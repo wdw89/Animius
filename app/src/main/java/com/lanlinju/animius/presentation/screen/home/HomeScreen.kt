@@ -42,6 +42,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
@@ -280,12 +281,23 @@ private fun Tab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
-        modifier = modifier.padding(8.dp),
+        modifier = modifier
+            .padding(8.dp)
+            .onFocusChanged { isFocused = it.isFocused },
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-        contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onBackground,
+        color = when {
+            isFocused -> MaterialTheme.colorScheme.primary
+            selected -> MaterialTheme.colorScheme.onSurface
+            else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+        },
+        contentColor = when {
+            isFocused -> MaterialTheme.colorScheme.onPrimary
+            selected -> MaterialTheme.colorScheme.surface
+            else -> MaterialTheme.colorScheme.onBackground
+        },
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -384,10 +396,9 @@ fun HomeBackground(
                 .offset(y = offsetY)
                 .align(Alignment.BottomStart),
             useGridLayout = useGridLayout,
-            onSwitchGridLayout = onSwitchLayout
-        ) {
-            launcher.launch(arrayOf("image/*"))
-        }
+            onSwitchGridLayout = onSwitchLayout,
+            onClick = { launcher.launch(arrayOf("image/*")) }
+        )
     }
 }
 
@@ -403,51 +414,52 @@ private fun HomeTile(
     val isWideScreen = isWideScreen(LocalContext.current)
     var showSourceSwitchDialog by remember { mutableStateOf(false) }
     var currentSourceName by remember { mutableStateOf(SourceHolder.currentSourceMode.name) }
+    var isSourceFocused by remember { mutableStateOf(false) }
     Row(
         modifier = modifier
             .fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .padding(
                     start = dimensionResource(Res.dimen.large_padding),
-                    bottom = if (!isWideScreen) dimensionResource(Res.dimen.medium_padding) else 0.dp
-                )
-                .focusGroup()
+                    top = 64.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy((-8).dp)
         ) {
             if (!isWideScreen) {
-                Text(
-                    text = stringResource(Res.string.lbl_anime),
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    style = MaterialTheme.typography.displayMedium,
-                    modifier = Modifier.clickable { onClick() }
-                )
+                var animeFocused by remember { mutableStateOf(false) }
+                Surface(
+                    onClick = onClick,
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (animeFocused) MaterialTheme.colorScheme.primary
+                    else Color.Transparent,
+                    modifier = Modifier.onFocusChanged { animeFocused = it.isFocused }
+                ) {
+                    Text(
+                        text = stringResource(Res.string.lbl_anime),
+                        color = if (animeFocused) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
             }
-            var isSourceFocused by remember { mutableStateOf(false) }
             Surface(
                 onClick = { showSourceSwitchDialog = true },
                 shape = RoundedCornerShape(20.dp),
-                color = if (isSourceFocused) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else Color.Transparent,
+                color = if (isSourceFocused) MaterialTheme.colorScheme.primary
+                else Color.Transparent,
                 modifier = Modifier.onFocusChanged { isSourceFocused = it.isFocused }
             ) {
                 Text(
                     text = currentSourceName,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
-            }
-            if (showSourceSwitchDialog) {
-                SourceSwitchDialog(
-                    onDismissRequest = { showSourceSwitchDialog = false },
-                    onRefresh = onRefresh,
-                    onSourceChanged = { mode ->
-                        currentSourceName = mode.name
-                        SourceHolder.isSourceChanged.value++
-                    }
+                    color = if (isSourceFocused) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
         }
@@ -455,11 +467,21 @@ private fun HomeTile(
         if (!isWideScreen) {
             LayoutTypeSelector(
                 modifier = Modifier
-                    .padding(end = 24.dp, bottom = 16.dp),
+                    .padding(end = 24.dp, top = 88.dp, bottom = 16.dp),
                 checked = useGridLayout,
                 onCheckedChange = { onSwitchGridLayout(it) }
             )
         }
+    }
+    if (showSourceSwitchDialog) {
+        SourceSwitchDialog(
+            onDismissRequest = { showSourceSwitchDialog = false },
+            onRefresh = onRefresh,
+            onSourceChanged = { mode ->
+                currentSourceName = mode.name
+                SourceHolder.isSourceChanged.value++
+            }
+        )
     }
 }
 
@@ -534,20 +556,26 @@ private fun LayoutTypeSelector(
         ) {
             repeat(2) { index ->
                 val selectedIndex = if (!checked) 0 else 1
+                var isFocused by remember { mutableStateOf(false) }
                 IconButton(
                     onClick = { if (selectedIndex != index) onCheckedChange?.invoke(!checked) },
-                    modifier = Modifier.requiredWidth(dimensionResource(Res.dimen.media_type_choice_size))
+                    modifier = Modifier
+                        .requiredWidth(dimensionResource(Res.dimen.media_type_choice_size))
+                        .onFocusChanged { isFocused = it.isFocused },
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary
+                        else Color.Transparent
+                    )
                 ) {
                     Icon(
                         imageVector = if (index == 0) Icons.Rounded.PlayArrow else ImageVector.vectorResource(
                             id = Res.drawable.manga
                         ),
-                        tint = animateColorAsState(
-                            targetValue = if (selectedIndex == index) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.background,
-                            animationSpec = tween(400),
-                            label = "icon_color"
-                        ).value,
+                        tint = when {
+                            isFocused -> MaterialTheme.colorScheme.onPrimary
+                            selectedIndex == index -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.background
+                        },
                         contentDescription = null,
                     )
                 }
