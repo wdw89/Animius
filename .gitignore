@@ -12,3 +12,7 @@ release/
 /.kotlin
 debug/
 nul
+.github
+.junie
+.mimocode
+.opencode
