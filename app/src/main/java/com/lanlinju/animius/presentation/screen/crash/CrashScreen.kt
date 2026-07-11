@@ -54,6 +54,7 @@ import com.lanlinju.animius.presentation.theme.SECONDARY_ALPHA
 import com.lanlinju.animius.presentation.theme.padding
 import com.lanlinju.animius.util.shareCrashLog
 import com.lanlinju.animius.util.toast
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
 import kotlinx.coroutines.launch
 
 @Composable
@@ -153,10 +154,7 @@ fun InfoScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val acceptInteractionSource = remember { MutableInteractionSource() }
-                    val acceptFocused by acceptInteractionSource.collectIsFocusedAsState()
-                    val acceptPressed by acceptInteractionSource.collectIsPressedAsState()
-                    val acceptActive = acceptFocused || acceptPressed
+                    val (acceptActive, acceptInteractionSource) = rememberInteractionFocus()
                     Button(
                         modifier = Modifier.weight(1f),
                         enabled = canAccept,
@@ -172,10 +170,7 @@ fun InfoScreen(
                         Text(text = acceptText)
                     }
                     if (onCopyClick != null) {
-                        val copyInteractionSource = remember { MutableInteractionSource() }
-                        val copyFocused by copyInteractionSource.collectIsFocusedAsState()
-                        val copyPressed by copyInteractionSource.collectIsPressedAsState()
-                        val copyActive = copyFocused || copyPressed
+                        val (copyActive, copyInteractionSource) = rememberInteractionFocus()
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = onCopyClick,
@@ -192,10 +187,7 @@ fun InfoScreen(
                     }
                 }
                 if (rejectText != null && onRejectClick != null) {
-                    val rejectInteractionSource = remember { MutableInteractionSource() }
-                    val rejectFocused by rejectInteractionSource.collectIsFocusedAsState()
-                    val rejectPressed by rejectInteractionSource.collectIsPressedAsState()
-                    val rejectActive = rejectFocused || rejectPressed
+                    val (rejectActive, rejectInteractionSource) = rememberInteractionFocus()
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = onRejectClick,

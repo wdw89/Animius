@@ -41,6 +41,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import java.util.Locale
 import com.lanlinju.animius.R as Res
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @Deprecated("Use AdaptiveNavigationBar instead")
 @Composable
@@ -148,7 +149,7 @@ fun AdaptiveNavigationBar(
         NavigationRail(modifier) {
             destinations.forEachIndexed { index, destination ->
                 val selected = destination.route == currentDestination
-                var isFocused by remember { mutableStateOf(false) }
+                val (isFocused, focusModifier) = rememberIsFocused()
                 NavigationRailItem(
                     selected = selected || isFocused,
                     onClick = { onNavigateToDestination(index) },
@@ -161,7 +162,7 @@ fun AdaptiveNavigationBar(
                             indicatorColor = MaterialTheme.colorScheme.primary
                         )
                     else NavigationRailItemDefaults.colors(),
-                    modifier = Modifier.onFocusChanged { isFocused = it.isFocused }
+                    modifier = focusModifier
                 )
             }
         }
@@ -170,7 +171,7 @@ fun AdaptiveNavigationBar(
         NavigationBar(modifier) {
             destinations.forEachIndexed { index, destination ->
                 val selected = destination.route == currentDestination
-                var isFocused by remember { mutableStateOf(false) }
+                val (isFocused, focusModifier) = rememberIsFocused()
                 NavigationBarItem(
                     selected = selected || isFocused,
                     onClick = { onNavigateToDestination(index) },
@@ -183,7 +184,7 @@ fun AdaptiveNavigationBar(
                             indicatorColor = MaterialTheme.colorScheme.primary
                         )
                     else NavigationBarItemDefaults.colors(),
-                    modifier = Modifier.onFocusChanged { isFocused = it.isFocused }
+                    modifier = focusModifier
                 )
             }
         }

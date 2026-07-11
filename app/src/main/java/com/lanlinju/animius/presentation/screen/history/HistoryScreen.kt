@@ -57,6 +57,8 @@ import com.lanlinju.animius.util.CROSSFADE_DURATION
 import com.lanlinju.animius.util.LOW_CONTENT_ALPHA
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.VIDEO_ASPECT_RATIO
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @Composable
 fun HistoryScreen(
@@ -186,14 +188,14 @@ fun HistoryItem(
 fun DeleteHistoryButton(
     onClick: () -> Unit,
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    val (isFocused, focusModifier) = rememberIsFocused()
     IconButton(
         onClick = onClick,
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = if (isFocused) MaterialTheme.colorScheme.primary
             else Color.Transparent
         ),
-        modifier = Modifier.onFocusChanged { isFocused = it.isFocused }
+        modifier = focusModifier
     ) {
         Icon(
             Icons.Outlined.DeleteOutline,
@@ -215,10 +217,7 @@ fun DeleteAllHistoriesDialog(
         title = { Text(text = stringResource(R.string.clear_all_histories)) },
         text = { Text(text = stringResource(R.string.are_you_sure_you_want_to_clear_all_histories)) },
         confirmButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             TextButton(
                 onClick = {
                     onDismissRequest()
@@ -236,10 +235,7 @@ fun DeleteAllHistoriesDialog(
             }
         },
         dismissButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             TextButton(
                 onClick = onDismissRequest,
                 interactionSource = interactionSource,

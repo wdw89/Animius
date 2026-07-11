@@ -79,6 +79,7 @@ import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.util.isWideScreen
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,10 +135,7 @@ fun SearchScreen(
             title = { Text("需要验证码验证") },
             text = { Text("搜索时遇到验证码，请完成验证后重试") },
             confirmButton = {
-                val interactionSource = remember { MutableInteractionSource() }
-                val isFocused by interactionSource.collectIsFocusedAsState()
-                val isPressed by interactionSource.collectIsPressedAsState()
-                val isActive = isFocused || isPressed
+                val (isActive, interactionSource) = rememberInteractionFocus()
                 TextButton(
                     onClick = {
                         viewModel.clearNeedCaptcha()
@@ -157,10 +155,7 @@ fun SearchScreen(
                 }
             },
             dismissButton = {
-                val interactionSource = remember { MutableInteractionSource() }
-                val isFocused by interactionSource.collectIsFocusedAsState()
-                val isPressed by interactionSource.collectIsPressedAsState()
-                val isActive = isFocused || isPressed
+                val (isActive, interactionSource) = rememberInteractionFocus()
                 TextButton(
                     onClick = { viewModel.clearNeedCaptcha() },
                     interactionSource = interactionSource,

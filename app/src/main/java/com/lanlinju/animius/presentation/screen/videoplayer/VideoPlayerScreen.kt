@@ -137,6 +137,8 @@ import com.lanlinju.animius.util.KEY_AUTO_ORIENTATION_ENABLED
 import com.lanlinju.animius.util.KEY_DANMAKU_CONFIG_DATA
 import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isTabletDevice
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.openExternalPlayer
 import com.lanlinju.animius.util.rememberPreference
@@ -311,10 +313,7 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        val backInteractionSource = remember { MutableInteractionSource() }
-        val backFocused by backInteractionSource.collectIsFocusedAsState()
-        val backPressed by backInteractionSource.collectIsPressedAsState()
-        val backActive = backFocused || backPressed
+        val (backActive, backInteractionSource) = rememberInteractionFocus()
         OutlinedButton(
             onClick = onBackClick,
             interactionSource = backInteractionSource,
@@ -328,10 +327,7 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
             Text(text = stringResource(id = R.string.back))
         }
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        val retryInteractionSource = remember { MutableInteractionSource() }
-        val retryFocused by retryInteractionSource.collectIsFocusedAsState()
-        val retryPressed by retryInteractionSource.collectIsPressedAsState()
-        val retryActive = retryFocused || retryPressed
+        val (retryActive, retryInteractionSource) = rememberInteractionFocus()
         OutlinedButton(
             onClick = { viewModel.retry() },
             interactionSource = retryInteractionSource,
@@ -469,8 +465,8 @@ private fun OptionsContent(
     onForwardClick: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var forwardFocused by remember { mutableStateOf(false) }
-    var moreFocused by remember { mutableStateOf(false) }
+    val (forwardFocused, forwardModifier) = rememberIsFocused()
+    val (moreFocused, moreModifier) = rememberIsFocused()
     Row {
         IconButton(
             onClick = onForwardClick,
@@ -478,7 +474,7 @@ private fun OptionsContent(
                 containerColor = if (forwardFocused) MaterialTheme.colorScheme.primary
                 else Color.Transparent
             ),
-            modifier = Modifier.onFocusChanged { forwardFocused = it.isFocused }
+            modifier = forwardModifier
         ) {
             Icon(
                 imageVector = Icons.Rounded.Forward85,
@@ -495,7 +491,7 @@ private fun OptionsContent(
                     containerColor = if (moreFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent
                 ),
-                modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
+                modifier = moreModifier
             ) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
@@ -509,7 +505,7 @@ private fun OptionsContent(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                var externalPlayFocused by remember { mutableStateOf(false) }
+                val (externalPlayFocused, externalModifier) = rememberIsFocused()
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -522,15 +518,14 @@ private fun OptionsContent(
                         expanded = false
                         openExternalPlayer(video.url)
                     },
-                    modifier = Modifier
-                        .onFocusChanged { externalPlayFocused = it.isFocused }
+                    modifier = externalModifier
                         .then(
                             if (externalPlayFocused) Modifier.background(MaterialTheme.colorScheme.primary)
                             else Modifier
                         )
                 )
 
-                var autoPlayFocused by remember { mutableStateOf(false) }
+                val (autoPlayFocused, autoPlayModifier) = rememberIsFocused()
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -545,8 +540,7 @@ private fun OptionsContent(
                     onClick = {
                         onAutoContinuePlayClick(!isAutoContinuePlayEnabled)
                     },
-                    modifier = Modifier
-                        .onFocusChanged { autoPlayFocused = it.isFocused }
+                    modifier = autoPlayModifier
                         .then(
                             if (autoPlayFocused) Modifier.background(MaterialTheme.colorScheme.primary)
                             else Modifier

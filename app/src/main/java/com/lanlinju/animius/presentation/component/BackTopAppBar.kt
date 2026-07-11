@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.lanlinju.animius.R
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,7 +30,7 @@ fun BackTopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     onBackClick: () -> Unit
 ) {
-    var backFocused by remember { mutableStateOf(false) }
+    val (backFocused, focusModifier) = rememberIsFocused()
 
     TopAppBar(
         title = {
@@ -46,7 +47,7 @@ fun BackTopAppBar(
                     containerColor = if (backFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent
                 ),
-                modifier = Modifier.onFocusChanged { backFocused = it.isFocused },
+                modifier = focusModifier,
                 onClick = onBackClick
             ) {
                 Icon(

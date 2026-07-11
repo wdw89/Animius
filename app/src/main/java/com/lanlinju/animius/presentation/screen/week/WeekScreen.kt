@@ -110,6 +110,8 @@ import com.lanlinju.animius.util.TABS
 import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -372,7 +374,6 @@ private fun AppBarAction(
     onNavigateToDanmakuSettings: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    var moreFocused by remember { mutableStateOf(false) }
 
     AppBarNavigation(
         onNavigateToHistory = onNavigateToHistory,
@@ -381,13 +382,14 @@ private fun AppBarAction(
     )
 
     Box {
+        val (moreFocused, moreModifier) = rememberIsFocused()
         IconButton(
             onClick = { menuExpanded = true },
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = if (moreFocused) MaterialTheme.colorScheme.primary
                 else Color.Transparent
             ),
-            modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
+            modifier = moreModifier
         ) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,
@@ -417,14 +419,14 @@ private fun AppBarNavigation(
     onNavigateToSearch: () -> Unit,
     onNavigateToDownload: () -> Unit
 ) {
-    var historyFocused by remember { mutableStateOf(false) }
+    val (historyFocused, historyModifier) = rememberIsFocused()
     IconButton(
         onClick = onNavigateToHistory,
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = if (historyFocused) MaterialTheme.colorScheme.primary
             else Color.Transparent
         ),
-        modifier = Modifier.onFocusChanged { historyFocused = it.isFocused }
+        modifier = historyModifier
     ) {
         Icon(
             painter = painterResource(id = R.drawable.ic_history),
@@ -434,14 +436,14 @@ private fun AppBarNavigation(
         )
     }
 
-    var searchFocused by remember { mutableStateOf(false) }
+    val (searchFocused, searchModifier) = rememberIsFocused()
     IconButton(
         onClick = onNavigateToSearch,
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = if (searchFocused) MaterialTheme.colorScheme.primary
             else Color.Transparent
         ),
-        modifier = Modifier.onFocusChanged { searchFocused = it.isFocused }
+        modifier = searchModifier
     ) {
         Icon(
             imageVector = Icons.Rounded.Search,
@@ -451,14 +453,14 @@ private fun AppBarNavigation(
         )
     }
 
-    var downloadFocused by remember { mutableStateOf(false) }
+    val (downloadFocused, downloadModifier) = rememberIsFocused()
     IconButton(
         onClick = onNavigateToDownload,
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = if (downloadFocused) MaterialTheme.colorScheme.primary
             else Color.Transparent
         ),
-        modifier = Modifier.onFocusChanged { downloadFocused = it.isFocused }
+        modifier = downloadModifier
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
@@ -523,7 +525,7 @@ private fun DropdownMenu(
     )
     DropdownMenu(expanded = expanded, onDismissRequest = onDismissMenu) {
         menuItems.forEach { item ->
-            var itemFocused by remember { mutableStateOf(false) }
+            val (itemFocused, itemModifier) = rememberIsFocused()
             DropdownMenuItem(
                 text = {
                     Text(
@@ -536,8 +538,7 @@ private fun DropdownMenu(
                     onDismissMenu()
                     item.action()
                 },
-                modifier = Modifier
-                    .onFocusChanged { itemFocused = it.isFocused }
+                modifier = itemModifier
                     .then(
                         if (itemFocused) Modifier.background(MaterialTheme.colorScheme.primary)
                         else Modifier
@@ -653,10 +654,7 @@ fun VersionUpdateDialog(
             }
         },
         confirmButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             TextButton(
                 onClick = { onDownloadUpdate(lifecycleOwner) },
                 interactionSource = interactionSource,
@@ -671,10 +669,7 @@ fun VersionUpdateDialog(
             }
         },
         dismissButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             TextButton(
                 onClick = onDismissUpdateDialog,
                 interactionSource = interactionSource,
@@ -712,10 +707,7 @@ private fun LoadingIndicationDialog(
         },
         confirmButton = {},
         dismissButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             TextButton(
                 onClick = onDismissRequest,
                 interactionSource = interactionSource,
@@ -759,10 +751,10 @@ fun SourceSwitchDialog(
                 radioOptions.forEachIndexed { index, text ->
                     val topCorner = if (index == 0) 24.dp else 4.dp
                     val bottomCorner = if (index == radioOptions.lastIndex) 24.dp else 4.dp
-                    var rowFocused by remember { mutableStateOf(false) }
+                    val (rowFocused, rowModifier) = rememberIsFocused()
 
                     Row(
-                        Modifier
+                        rowModifier
                             .fillMaxWidth()
                             .height(dimensionResource(id = R.dimen.radio_button_height))
                             .clip(
@@ -777,7 +769,6 @@ fun SourceSwitchDialog(
                                 if (rowFocused) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.surfaceVariant
                             )
-                            .onFocusChanged { rowFocused = it.isFocused }
                             .selectable(
                                 selected = (text == selectedOption),
                                 onClick = {
@@ -811,10 +802,7 @@ fun SourceSwitchDialog(
         },
         confirmButton = {},
         dismissButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             TextButton(
                 onClick = onDismissRequest,
                 interactionSource = interactionSource,

@@ -64,6 +64,8 @@ import com.lanlinju.animius.presentation.screen.settings.DanmakuConfigData.Compa
 import com.lanlinju.animius.util.KEY_DANMAKU_CONFIG_DATA
 import com.lanlinju.animius.util.KEY_DANMAKU_ENABLED
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.serialization.Serializable
 import java.util.UUID
 import kotlin.math.roundToInt
@@ -80,14 +82,14 @@ fun DanmakuSettingsScreen(onBackClick: () -> Unit = {}) {
                 title = { Text(text = stringResource(id = R.string.danmaku_settings)) },
                 scrollBehavior = topBarBehavior,
                 navigationIcon = {
-                    var backFocused by remember { mutableStateOf(false) }
+                    val (backFocused, backModifier) = rememberIsFocused()
                     IconButton(
                         onClick = onBackClick,
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = if (backFocused) MaterialTheme.colorScheme.primary
                             else Color.Transparent
                         ),
-                        modifier = Modifier.onFocusChanged { backFocused = it.isFocused }
+                        modifier = backModifier
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -183,10 +185,7 @@ fun DanmakuFontPreview(
 
 @Composable
 fun ResetButton(onReset: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val isActive = isFocused || isPressed
+    val (isActive, interactionSource) = rememberInteractionFocus()
     Button(
         modifier = Modifier
             .fillMaxWidth()

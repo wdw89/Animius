@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.lanlinju.animius.R
+import com.lanlinju.animius.util.focus.rememberInteractionFocus
 
 @Composable
 fun WarningMessage(
@@ -49,10 +50,7 @@ fun WarningMessage(
             style = MaterialTheme.typography.bodyMedium
         )
         if (onRetryClick != null) {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val (isActive, interactionSource) = rememberInteractionFocus()
             OutlinedButton(
                 onClick = onRetryClick,
                 interactionSource = interactionSource,

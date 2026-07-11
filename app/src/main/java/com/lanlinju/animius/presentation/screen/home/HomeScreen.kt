@@ -91,6 +91,7 @@ import com.lanlinju.animius.presentation.screen.week.SourceSwitchDialog
 import com.lanlinju.animius.util.bannerParallax
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 import com.lanlinju.animius.R as Res
 
@@ -414,7 +415,7 @@ private fun HomeTile(
     val isWideScreen = isWideScreen(LocalContext.current)
     var showSourceSwitchDialog by remember { mutableStateOf(false) }
     var currentSourceName by remember { mutableStateOf(SourceHolder.currentSourceMode.name) }
-    var isSourceFocused by remember { mutableStateOf(false) }
+    val (isSourceFocused, sourceFocusModifier) = rememberIsFocused()
     Row(
         modifier = modifier
             .fillMaxWidth(),
@@ -430,13 +431,13 @@ private fun HomeTile(
             verticalArrangement = Arrangement.spacedBy((-8).dp)
         ) {
             if (!isWideScreen) {
-                var animeFocused by remember { mutableStateOf(false) }
+                val (animeFocused, animeFocusModifier) = rememberIsFocused()
                 Surface(
                     onClick = onClick,
                     shape = RoundedCornerShape(20.dp),
                     color = if (animeFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent,
-                    modifier = Modifier.onFocusChanged { animeFocused = it.isFocused }
+                    modifier = animeFocusModifier
                 ) {
                     Text(
                         text = stringResource(Res.string.lbl_anime),
@@ -452,7 +453,7 @@ private fun HomeTile(
                 shape = RoundedCornerShape(20.dp),
                 color = if (isSourceFocused) MaterialTheme.colorScheme.primary
                 else Color.Transparent,
-                modifier = Modifier.onFocusChanged { isSourceFocused = it.isFocused }
+                modifier = sourceFocusModifier
             ) {
                 Text(
                     text = currentSourceName,
