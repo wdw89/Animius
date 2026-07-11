@@ -91,12 +91,44 @@ The `FocusHighlight` modifier will be used on the two target screens (detail, se
 
 ```
 app/src/main/java/com/lanlinju/animius/util/focus/
-├── FocusHighlight.kt      # Modifier.onFocusHighlight()
+├── FocusHighlight.kt      # rememberIsFocused()
 ├── DpadKeyHandler.kt      # Modifier.handleDPadKeyEvents()
-└── FocusOrder.kt           # FocusPropertiesScope helpers (focusUp/Down/Left/Right)
 ```
 
-All three are `Modifier` extension functions at package `com.lanlinju.animius.util.focus`. No new module — stays in `:app`.
+Two files at package `com.lanlinju.animius.util.focus`. No new module — stays in `:app`.
+
+### Decision 7 (v4 — 彻底重构): 放弃 lastPlayedFocusRef，改用 moveFocus
+
+**问题:** 在 LazyRow item 内部用 `LaunchedEffect` 管理 `lastPlayedFocusRef` 产生了一系列
+时序问题：异步窗口期崩溃、倒序后 ref 失效、正序后 `initialFocusDone` 重置导致抢焦点。
+经过 v1-v3 迭代修复均未彻底解决。
+
+**新方案:** 完全放弃 `lastPlayedFocusRef` 机制。
+
+1. `AnimeEpisodes` 不再接收 `lastPlayedFocusRef` 参数
+2. `EpisodeListControl.onUpFocusRequest` 改为 `focusManager.moveFocus(FocusDirection.Up)`
+   — 让 Compose 空间算法自然向上导航到 LazyRow 中空间最近的 episode
+3. `FavouriteIcon.onDown` 同样改为 `focusManager.moveFocus(FocusDirection.Down)`
+4. 初始 focus：`AnimeEpisodes` 函数级别用 `LaunchedEffect(Unit)` 滚动到 `lastPosition`
+   并 `requestFocus` 第一个可见 item（通过 `scrollState.firstVisibleItemIndex` 获取）
+5. 倒序后焦点留在按钮上（不抢），按↑时 `moveFocus(Up)` 自然导航
+
+**优势:**
+- 无 FocusRequester 生命周期问题（不存储跨 composable 引用）
+- 无异步时序窗口
+- 倒序/正序切换不抢焦点
+- `moveFocus` 是 Compose 原生 API，稳定可靠
+
+**代价:**
+- 按↑从控件行到集数时，聚焦到空间最近的 episode（不一定是最后播放的）
+- 但 LazyRow 已滚动到 `lastPosition` 附近，所以空间最近的通常就是最后播放的
+
+### Decision 8: Reverse list button shows toggle state
+
+**Chosen:** Change button text based on current `reverseList` state.
+When `reverseList` is `false`, show the string resource `reverse_list` ("列表倒序").
+When `reverseList` is `true`, show "列表正序". No new string resource needed —
+hardcoded Chinese literal since other UI text in this row ("线路", "更多") is also hardcoded.
 
 ## Risks / Trade-offs
 

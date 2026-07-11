@@ -11,7 +11,16 @@ Interactive elements in vertically stacked layouts (Column or scrollable equival
 #### Scenario: Controls row to related row (detail page)
 - **WHEN** D-pad focus is on any control button (channel, reverse, or more episodes)
 - **THEN** pressing DOWN moves focus to the first item in the related anime `LazyRow`
-- **AND** pressing UP moves focus to an episode button in the row above
+- **AND** pressing UP moves focus to the last played episode button in the row above
+
+#### Scenario: Favourite button to last played episode (detail page)
+- **WHEN** D-pad focus is on the FavouriteIcon (heart button)
+- **THEN** pressing DOWN moves focus to the last played episode button
+
+#### Scenario: Reverse list preserves last played focus (detail page)
+- **WHEN** user toggles reverse list
+- **AND** presses UP from EpisodeListControl
+- **THEN** focus moves to the last played episode button (not a different episode)
 
 #### Scenario: Theme mode to switch rows (settings page)
 - **WHEN** D-pad focus is on a theme mode `SegmentedButton` (System, Light, or Dark)

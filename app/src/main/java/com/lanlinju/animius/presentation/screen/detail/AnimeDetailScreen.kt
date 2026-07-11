@@ -85,9 +85,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -176,6 +179,7 @@ fun AnimeDetailScreen(
                 var showBottomSheet by remember { mutableStateOf(false) }
                 var showChannelSelectorDialog by remember { mutableStateOf(false) }
                 var showDownloadBottomSheet by remember { mutableStateOf(false) }
+                val focusManager = LocalFocusManager.current
 
                 val background = Color(
                     ColorUtils.blendARGB(
@@ -258,14 +262,12 @@ fun AnimeDetailScreen(
                         )
 
                         val controlFocusRequester = remember { FocusRequester() }
-                        val firstEpisodeFocusRequester = remember { FocusRequester() }
                         val firstRelatedFocusRequester = remember { FocusRequester() }
 
                         Column {
                             AnimeEpisodes(
                                 episodes = animeDetail.episodes,
                                 lastPosition = animeDetail.lastPosition,
-                                firstItemFocusRequester = firstEpisodeFocusRequester,
                                 contentPadding = PaddingValues(
                                     start = dimensionResource(Res.dimen.large_padding) + if (
                                         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -290,8 +292,9 @@ fun AnimeDetailScreen(
                             EpisodeListControl(
                                 channelIndex = animeDetail.channelIndex,
                                 isShowChannel = animeDetail.channels.size > 1,
+                                reverseList = reverseList,
                                 focusRequester = controlFocusRequester,
-                                onUpFocusRequest = { firstEpisodeFocusRequester.requestFocus() },
+                                onUpFocusRequest = { focusManager.moveFocus(FocusDirection.Up) },
                                 onDownFocusRequest = { firstRelatedFocusRequester.requestFocus() },
                                 onReverseClick = { reverseList = !reverseList },
                                 onMoreClick = { showBottomSheet = true },
@@ -338,7 +341,7 @@ fun AnimeDetailScreen(
                             }
                         )
 
-                        FavouriteIcon(isFavourite, animeDetail, viewModel)
+                        FavouriteIcon(isFavourite, animeDetail, viewModel, focusManager)
                     }
 
                     if (showBottomSheet) {
@@ -539,6 +542,7 @@ private fun FavouriteIcon(
     isFavourite: Boolean,
     animeDetail: AnimeDetail,
     viewModel: AnimeDetailViewModel,
+    focusManager: FocusManager,
 ) {
     val context = LocalContext.current
     val (isFocused, focusModifier) = rememberIsFocused()
@@ -547,7 +551,11 @@ private fun FavouriteIcon(
     )
 
     IconButton(
-        modifier = focusModifier,
+        modifier = Modifier
+            .then(focusModifier)
+            .handleDPadKeyEvents(
+                onDown = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = when {
                 isFocused -> MaterialTheme.colorScheme.primary
@@ -672,13 +680,20 @@ fun AnimeEpisodes(
     reverseList: Boolean,
     contentPadding: PaddingValues,
     color: Color = MaterialTheme.colorScheme.secondaryContainer,
-    firstItemFocusRequester: FocusRequester? = null,
     onEpisodeClick: (index: Int, episode: Episode) -> Unit
 ) {
+    val targetIndex = if (reverseList) episodes.size - 1 - lastPosition else lastPosition
     val scrollState = rememberLazyListState(
-        initialFirstVisibleItemIndex = if (lastPosition < 3) 0 else lastPosition,
-        initialFirstVisibleItemScrollOffset = if (lastPosition < 3) 0 else -200
+        initialFirstVisibleItemIndex = if (targetIndex < 3) 0 else targetIndex,
+        initialFirstVisibleItemScrollOffset = if (targetIndex < 3) 0 else -200
     )
+
+    // Initial focus: scroll to lastPosition then focus that item (only once)
+    val lastPlayedFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        scrollState.scrollToItem(targetIndex)
+        runCatching { lastPlayedFocusRequester.requestFocus() }
+    }
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(dimensionResource(Res.dimen.medium_padding)),
@@ -686,12 +701,13 @@ fun AnimeEpisodes(
         modifier = modifier,
         state = scrollState
     ) {
-        itemsIndexed(if (!reverseList) episodes else episodes.reversed()) { index, episode ->
-            val focusRequester = remember { FocusRequester() }
+        val displayList = if (!reverseList) episodes else episodes.reversed()
+        itemsIndexed(displayList, key = { _, episode -> episode.url }) { index, episode ->
             val interactionSource = remember { MutableInteractionSource() }
             val isFocused by interactionSource.collectIsFocusedAsState()
             val isPressed by interactionSource.collectIsPressedAsState()
             val isActive = isFocused || isPressed
+            val isLastPlayed = index == targetIndex
             FilledTonalButton(
                 onClick = { onEpisodeClick(index, episode) },
                 interactionSource = interactionSource,
@@ -703,11 +719,9 @@ fun AnimeEpisodes(
                 ),
                 modifier = Modifier
                     .clip(CircleShape)
-                    .focusRequester(focusRequester)
                     .then(
-                        if (index == 0 && firstItemFocusRequester != null) {
-                            Modifier.focusRequester(firstItemFocusRequester!!)
-                        } else Modifier
+                        if (isLastPlayed) Modifier.focusRequester(lastPlayedFocusRequester)
+                        else Modifier
                     )
             ) {
                 Text(
@@ -722,13 +736,6 @@ fun AnimeEpisodes(
                         vertical = dimensionResource(Res.dimen.small_padding)
                     )
                 )
-            }
-
-            LaunchedEffect(Unit) {
-                if (index == lastPosition) {
-                    "focusRequester: ${lastPosition + 1}".log("AnimeDetailScreen")
-                    focusRequester.requestFocus()
-                }
             }
         }
     }
@@ -767,6 +774,7 @@ private fun EpisodeListControl(
     modifier: Modifier = Modifier,
     channelIndex: Int,
     isShowChannel: Boolean,
+    reverseList: Boolean = false,
     focusRequester: FocusRequester? = null,
     onUpFocusRequest: () -> Unit = {},
     onDownFocusRequest: () -> Unit = {},
@@ -837,7 +845,7 @@ private fun EpisodeListControl(
                 .padding(horizontal = 12.dp, vertical = 3.dp)
         ) {
             Text(
-                text = stringResource(id = Res.string.reverse_list),
+                text = if (reverseList) "列表正序" else stringResource(id = Res.string.reverse_list),
                 color = if (reverseFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelMedium
             )
