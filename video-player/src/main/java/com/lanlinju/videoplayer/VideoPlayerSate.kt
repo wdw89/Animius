@@ -36,8 +36,8 @@ fun rememberVideoPlayerState(
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     config: ExoPlayer.Builder.() -> Unit = {
         setLoadControl(loadControlCreator())
-        setSeekForwardIncrementMs(15 * 1000)
-        setSeekBackIncrementMs(15 * 1000)
+        setSeekForwardIncrementMs(10 * 1000)
+        setSeekBackIncrementMs(10 * 1000)
     }
 ): VideoPlayerState = remember {
     VideoPlayerStateImpl(
@@ -64,6 +64,8 @@ class VideoPlayerStateImpl(
     private val hideControllerAfterMs: Long,
     private val videoPositionPollInterval: Long,
 ) : VideoPlayerState, Player.Listener {
+    private val seekHideAfterMs = 1500L
+    private var hideAfterMs = hideControllerAfterMs
     override val videoSize = mutableStateOf(player.videoSize)
     override val videoResizeMode = mutableStateOf(ResizeMode.Fit)
     override val videoPositionMs = mutableStateOf(0L)
@@ -100,9 +102,10 @@ class VideoPlayerStateImpl(
     override val onSeeking: (Float) -> Unit
         get() = {
             controlUiLastInteractionMs = 0
-            isSeeking.value = true
             isEnded.value = false
             if (!isControlUiVisible.value) showControlUi()
+            isSeeking.value = true
+            hideAfterMs = seekHideAfterMs
             this.videoProgress.value = it
         }
 
@@ -111,8 +114,11 @@ class VideoPlayerStateImpl(
      */
     override val onSeeked: () -> Unit
         get() = {
-            isSeeking.value = false
             player.seekTo((player.duration * videoProgress.value).toLong())
+            // Don't reset isSeeking — keep compact overlay during fade-out.
+            // isSeeking is reset in showControlUi() when UI is shown again.
+            hideAfterMs = seekHideAfterMs
+            controlUiLastInteractionMs = 0
         }
 
     /**
@@ -124,6 +130,27 @@ class VideoPlayerStateImpl(
             isEnded.value = false
             this.videoProgress.value = progress
             player.seekTo((player.duration * videoProgress.value).toLong())
+        }
+
+    /**
+     * D-pad LEFT/RIGHT with hidden UI: seek by skipMs, show compact overlay (isSeeking=true
+     * hides header + playback), use short 1.5s auto-hide timer. isSeeking is NOT reset here —
+     * it stays true until showControlUi() is called next, so the compact overlay fades out
+     * directly without flashing to full UI.
+     */
+    override val onTimedSeek: (Long) -> Unit
+        get() = { skipMs ->
+            val duration = videoDurationMs.value
+            if (duration > 0) {
+                val newPos = (player.currentPosition + skipMs).coerceIn(0, duration)
+                val progress = newPos.toFloat() / duration
+                if (!isControlUiVisible.value) showControlUi()
+                isSeeking.value = true
+                hideAfterMs = seekHideAfterMs
+                controlUiLastInteractionMs = 0
+                this.videoProgress.value = progress
+                player.seekTo(newPos)
+            }
         }
 
     override fun onChangeVolume(value: Float) {
@@ -212,6 +239,8 @@ class VideoPlayerStateImpl(
     override fun hideControlUi() {
         controlUiLastInteractionMs = 0
         isControlUiVisible.value = false
+        // Don't reset isSeeking here — keep compact overlay during fade-out so
+        // the full UI doesn't flash. isSeeking is reset in showControlUi() instead.
         pollVideoPositionJob?.cancel()
         pollVideoPositionJob = null
     }
@@ -219,6 +248,10 @@ class VideoPlayerStateImpl(
     override fun showControlUi() {
         controlUiLastInteractionMs = 0
         isControlUiVisible.value = true
+        // Reset to full UI mode: isSeeking=false (show header + playback), 6s auto-hide timer.
+        // onSeeking/onTimedSeek will override these to compact overlay + 1.5s timer after calling us.
+        isSeeking.value = false
+        hideAfterMs = hideControllerAfterMs
         pollVideoPositionJob?.cancel()
         pollVideoPositionJob = coroutineScope.launch {
             while (true) {
@@ -236,7 +269,7 @@ class VideoPlayerStateImpl(
                 controlUiLastInteractionMs += videoPositionPollInterval
 
                 delay(videoPositionPollInterval)
-                if (controlUiLastInteractionMs >= hideControllerAfterMs) {
+                if (controlUiLastInteractionMs >= hideAfterMs) {
                     hideControlUi()
                     break
                 }
@@ -285,6 +318,10 @@ class VideoPlayerStateImpl(
 
     override fun hideEpisodeUi() {
         isEpisodeUiVisible.value = false
+    }
+
+    override fun onUserInteraction() {
+        controlUiLastInteractionMs = 0
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -423,6 +460,7 @@ interface VideoPlayerState {
     val onSeeking: (dragProcess: Float) -> Unit     // 当拖动进度条时调用
     val onSeeked: () -> Unit                        // 当拖动进度条结束时调用
     val onClickSlider: (progress: Float) -> Unit // 当点击进度条时调用
+    val onTimedSeek: (skipMs: Long) -> Unit // D-pad LEFT/RIGHT: seek + compact overlay + short hide timer
 
     val speedText: State<String>
     val resizeText: State<String>
@@ -463,6 +501,8 @@ interface VideoPlayerState {
 
     fun showEpisodeUi()
     fun hideEpisodeUi()
+
+    fun onUserInteraction()
 }
 
 interface VideoPlayerControl {

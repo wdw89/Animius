@@ -1,6 +1,7 @@
 package com.lanlinju.videoplayer
 
 
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -38,12 +39,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.lanlinju.videoplayer.icons.Fullscreen
 import com.lanlinju.videoplayer.icons.FullscreenExit
@@ -69,6 +79,10 @@ fun VideoPlayerControl(
     optionsContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     sliderFocusRequester: FocusRequester = remember { FocusRequester() },
+    backFocusRequester: FocusRequester = remember { FocusRequester() },
+    forwardFocusRequester: FocusRequester = remember { FocusRequester() },
+    playPauseFocusRequester: FocusRequester = remember { FocusRequester() },
+    episodeFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     CompositionLocalProvider(LocalContentColor provides contentColor) {
         Box(
@@ -93,6 +107,8 @@ fun VideoPlayerControl(
                     isSeeking = state.isSeeking.value,
                     onBackClick = onBackClick,
                     optionsContent = optionsContent,
+                    backFocusRequester = backFocusRequester,
+                    sliderFocusRequester = sliderFocusRequester,
                 )
 
                 Spacer(Modifier.size(1.dp))
@@ -105,6 +121,9 @@ fun VideoPlayerControl(
                     onNextClick = onNextClick,
                     onDanmakuClick = onDanmakuClick,
                     sliderFocusRequester = sliderFocusRequester,
+                    backFocusRequester = backFocusRequester,
+                    playPauseFocusRequester = playPauseFocusRequester,
+                    episodeFocusRequester = episodeFocusRequester,
                 )
             }
         }
@@ -119,6 +138,8 @@ private fun ControlHeader(
     isSeeking: Boolean,
     onBackClick: (() -> Unit)?,
     optionsContent: (@Composable () -> Unit)? = null,
+    backFocusRequester: FocusRequester = remember { FocusRequester() },
+    sliderFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     if (isSeeking) return
 
@@ -131,6 +152,8 @@ private fun ControlHeader(
         IconButton(
             modifier = Modifier
                 .size(MediumIconButtonSize)
+                .focusRequester(backFocusRequester)
+                .focusProperties { down = sliderFocusRequester }
                 .onFocusChanged { backFocused = it.isFocused },
             onClick = { onBackClick?.invoke() },
             colors = IconButtonDefaults.iconButtonColors(
@@ -176,7 +199,11 @@ private fun BottomControlBar(
     onNextClick: () -> Unit,
     onDanmakuClick: (Boolean) -> Unit,
     sliderFocusRequester: FocusRequester,
+    backFocusRequester: FocusRequester,
+    playPauseFocusRequester: FocusRequester,
+    episodeFocusRequester: FocusRequester,
 ) {
+    val isTv = LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
     val timestamp =
         remember(
             state.videoDurationMs.value,
@@ -205,7 +232,11 @@ private fun BottomControlBar(
             onValueChangeFinished = { state.onSeeked() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(30.dp),
+                .height(30.dp)
+                .focusProperties {
+                    up = backFocusRequester
+                    down = playPauseFocusRequester
+                },
             isSeeking = state.isSeeking.value,
             color = progressLineColor,
             focusRequester = sliderFocusRequester,
@@ -223,7 +254,10 @@ private fun BottomControlBar(
                 resizeText = state.resizeText.value,
                 onSpeedClick = state::showSpeedUi,
                 onResizeClick = state::showResizeUi,
-                onEpisodeClick = state::showEpisodeUi
+                onEpisodeClick = state::showEpisodeUi,
+                playPauseFocusRequester = playPauseFocusRequester,
+                episodeFocusRequester = episodeFocusRequester,
+                sliderFocusRequester = sliderFocusRequester
             )
         } else Spacer(modifier = Modifier.size(MediumIconButtonSize))
     }
@@ -235,6 +269,8 @@ private fun TimelineControl(
     isFullScreen: Boolean,
     onFullScreenToggle: () -> Unit
 ) {
+    val isTv = LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -242,14 +278,16 @@ private fun TimelineControl(
     ) {
         Text(text = timestamp, style = MaterialTheme.typography.bodySmall)
         Spacer(modifier = Modifier.weight(1.0f))
-        AdaptiveIconButton(
-            modifier = Modifier.size(SmallIconButtonSize),
-            onClick = onFullScreenToggle
-        ) {
-            Icon(
-                imageVector = if (isFullScreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-                contentDescription = null
-            )
+        if (!isTv) {
+            AdaptiveIconButton(
+                modifier = Modifier.size(SmallIconButtonSize),
+                onClick = onFullScreenToggle
+            ) {
+                Icon(
+                    imageVector = if (isFullScreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                    contentDescription = null
+                )
+            }
         }
     }
 }
@@ -265,10 +303,14 @@ private fun PlaybackControl(
     resizeText: String,
     onSpeedClick: () -> Unit,
     onResizeClick: () -> Unit,
-    onEpisodeClick: () -> Unit
+    onEpisodeClick: () -> Unit,
+    playPauseFocusRequester: FocusRequester = remember { FocusRequester() },
+    episodeFocusRequester: FocusRequester = remember { FocusRequester() },
+    sliderFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -276,13 +318,17 @@ private fun PlaybackControl(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PlayPauseButton(isPlaying, onPlayPause)
+            PlayPauseButton(isPlaying, onPlayPause, playPauseFocusRequester, sliderFocusRequester)
             NextEpisodeIcon(onClick = onNextClick)
             DanmakuIcon(onClick = onDanmakuClick, danmakuEnabled = enabledDanmaku)
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            AdaptiveTextButton(text = "选集", onClick = onEpisodeClick)
+            AdaptiveTextButton(
+                text = "选集",
+                onClick = onEpisodeClick,
+                modifier = Modifier.focusRequester(episodeFocusRequester)
+            )
             AdaptiveTextButton(text = speedText, onClick = onSpeedClick)
             AdaptiveTextButton(text = resizeText, onClick = onResizeClick)
         }
@@ -290,9 +336,12 @@ private fun PlaybackControl(
 }
 
 @Composable
-private fun PlayPauseButton(isPlaying: Boolean, onPlayPause: () -> Unit) {
+private fun PlayPauseButton(isPlaying: Boolean, onPlayPause: () -> Unit, focusRequester: FocusRequester = remember { FocusRequester() }, upFocusRequester: FocusRequester = remember { FocusRequester() }) {
     AdaptiveIconButton(
-        modifier = Modifier.size(MediumIconButtonSize),
+        modifier = Modifier
+            .size(MediumIconButtonSize)
+            .focusRequester(focusRequester)
+            .focusProperties { up = upFocusRequester },
         onClick = onPlayPause
     ) {
         Icon(
@@ -352,7 +401,8 @@ fun AdaptiveTextButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     color: Color = LocalContentColor.current,
-    style: TextStyle = MaterialTheme.typography.bodyMedium
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    fontWeight: FontWeight? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -367,6 +417,7 @@ fun AdaptiveTextButton(
             text = text,
             color = if (isActive) MaterialTheme.colorScheme.onPrimary else color,
             style = style,
+            fontWeight = fontWeight,
         )
     }
 }

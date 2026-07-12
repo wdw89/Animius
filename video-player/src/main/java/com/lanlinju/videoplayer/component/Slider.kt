@@ -7,7 +7,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -56,28 +59,27 @@ fun Slider(
         animationSpec = tween()
     )
     var isFocused by remember { mutableStateOf(false) }
+    val isActive = isFocused || isSeeking
     val thumbSize by animateDpAsState(
-        targetValue = if (isFocused || isSeeking) 20.dp else 15.dp,
+        targetValue = if (isActive) 20.dp else 15.dp,
         animationSpec = tween(150)
     )
 
     Box(
         modifier = modifier
             .focusRequester(focusRequester)
-            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
-                    val stepFraction = if (durationMs > 0) 15000f / durationMs else 0.02f
+                    val stepFraction = if (durationMs > 0) 10000f / durationMs else 0.02f
                     when (event.key) {
                         Key.DirectionRight -> {
-                            onValueChange((value + stepFraction).coerceIn(0f, 1f))
-                            onValueChangeFinished()
+                            onClick((value + stepFraction).coerceIn(0f, 1f))
                             true
                         }
                         Key.DirectionLeft -> {
-                            onValueChange((value - stepFraction).coerceIn(0f, 1f))
-                            onValueChangeFinished()
+                            onClick((value - stepFraction).coerceIn(0f, 1f))
                             true
                         }
                         else -> false
@@ -156,7 +158,7 @@ fun Slider(
                     )
                 )
                 .size(thumbSize)
-                .border(if (isFocused) 2.dp else 0.dp, Color.White, CircleShape)
+                .border(if (isActive) 3.dp else 0.dp, Color.White, CircleShape)
                 .background(color)
         )
     }

@@ -109,6 +109,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -148,6 +149,7 @@ import com.lanlinju.videoplayer.VideoPlayer
 import com.lanlinju.videoplayer.VideoPlayerControl
 import com.lanlinju.videoplayer.VideoPlayerState
 import com.lanlinju.videoplayer.prettyVideoTimestamp
+import com.lanlinju.videoplayer.component.Slider
 import com.lanlinju.videoplayer.rememberVideoPlayerState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -196,32 +198,85 @@ fun VideoPlayScreen(
 
             val playerState = rememberVideoPlayerState(isAutoOrientation = isAutoOrientation)
 
+            val sliderFocusRequester = remember { FocusRequester() }
+            val backFocusRequester = remember { FocusRequester() }
+            val forwardFocusRequester = remember { FocusRequester() }
+            val playPauseFocusRequester = remember { FocusRequester() }
+            val episodeFocusRequester = remember { FocusRequester() }
+            var pendingFocusTarget by remember { mutableStateOf<FocusTarget?>(null) }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .adaptiveSize(playerState.isFullscreen.value, view, activity),
+                    .adaptiveSize(playerState.isFullscreen.value, view, activity)
+                    .focusable()
+                    .onKeyEvent { event ->
+                        // Hidden-UI shortcuts: intercept when controls are hidden
+                        if (playerState.isControlUiVisible.value) return@onKeyEvent false
+                        if (event.type == KeyEventType.KeyDown) {
+                            when (event.key) {
+                                Key.DirectionLeft -> {
+                                    playerState.onTimedSeek(-10000)
+                                    pendingFocusTarget = FocusTarget.SLIDER
+                                    true
+                                }
+                                Key.DirectionRight -> {
+                                    playerState.onTimedSeek(10000)
+                                    pendingFocusTarget = FocusTarget.SLIDER
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else if (event.type == KeyEventType.KeyUp) {
+                            when (event.key) {
+                                Key.DirectionUp -> {
+                                    playerState.showControlUi()
+                                    pendingFocusTarget = FocusTarget.FORWARD
+                                    true
+                                }
+                                Key.DirectionDown -> {
+                                    playerState.showControlUi()
+                                    pendingFocusTarget = FocusTarget.EPISODE
+                                    true
+                                }
+                                Key.DirectionCenter, Key.Spacebar -> {
+                                    if (playerState.isPlaying.value) playerState.control.pause()
+                                    playerState.showControlUi()
+                                    pendingFocusTarget = FocusTarget.PLAY_PAUSE
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else false
+                    },
                 contentAlignment = Alignment.Center
             ) {
 
                 // Video player composable
-                val sliderFocusRequester = remember { FocusRequester() }
-
                 VideoPlayer(
                     url = video.url,
                     videoPosition = video.lastPlayPosition,
                     playerState = playerState,
                     headers = video.headers,
                     onBackPress = { handleBackPress(playerState, onBackClick, view, activity) },
-                    modifier = Modifier
-                        .focusable()
-                        .defaultRemoteControlHandler(
-                            playerState = playerState,
-                            onNextClick = { viewModel.playNextEpisode(playerState.player.currentPosition) },
-                            onSliderFocusRequest = { sliderFocusRequester.requestFocus() }
-                        )
                 ) {
-                    val controlFocusRequester = remember { FocusRequester() }
+
+                    // Deferred focus: wait for AnimatedVisibility to compose before requesting
+                    LaunchedEffect(pendingFocusTarget) {
+                        pendingFocusTarget?.let { target ->
+                            delay(50)
+                            runCatching {
+                                when (target) {
+                                    FocusTarget.FORWARD -> forwardFocusRequester.requestFocus()
+                                    FocusTarget.PLAY_PAUSE -> playPauseFocusRequester.requestFocus()
+                                    FocusTarget.EPISODE -> episodeFocusRequester.requestFocus()
+                                    FocusTarget.SLIDER -> sliderFocusRequester.requestFocus()
+                                }
+                            }
+                            pendingFocusTarget = null
+                        }
+                    }
 
                     VideoPlayerControl(
                         state = playerState,
@@ -238,13 +293,24 @@ fun VideoPlayScreen(
                                 video = video,
                                 isAutoContinuePlayEnabled = isAutoContinuePlayEnabled,
                                 onAutoContinuePlayClick = { isAutoContinuePlayEnabled = it },
-                                onForwardClick = { playerState.control.skip(85000) }
+                                onForwardClick = { playerState.control.skip(85000) },
+                                forwardFocusRequester = forwardFocusRequester
                             )
                         },
                         onDanmakuClick = { viewModel.setEnabledDanmaku(it) },
-                        modifier = Modifier.focusRequester(controlFocusRequester),
-                        sliderFocusRequester = sliderFocusRequester
+                        modifier = Modifier,
+                        sliderFocusRequester = sliderFocusRequester,
+                        backFocusRequester = backFocusRequester,
+                        forwardFocusRequester = forwardFocusRequester,
+                        playPauseFocusRequester = playPauseFocusRequester,
+                        episodeFocusRequester = episodeFocusRequester
                     )
+                }
+
+                // Default focus on initial load
+                LaunchedEffect(Unit) {
+                    delay(100)
+                    runCatching { playPauseFocusRequester.requestFocus() }
                 }
 
                 // Danmaku and additional UI components
@@ -406,63 +472,15 @@ private fun DanmakuHost(
     }
 }
 
-private fun Modifier.defaultRemoteControlHandler(
-    playerState: VideoPlayerState,
-    onNextClick: () -> Unit = {},
-    onSliderFocusRequest: () -> Unit = {},
-) = onKeyEvent { keyEvent: KeyEvent ->
-    if (keyEvent.type == KeyEventType.KeyUp)
-        when (keyEvent.key) {
-            Key.DirectionLeft -> {
-                if (!playerState.isControlUiVisible.value) {
-                    playerState.showControlUi()
-                    onSliderFocusRequest()
-                }
-                true
-            }
-
-            Key.DirectionRight -> {
-                if (!playerState.isControlUiVisible.value) {
-                    playerState.showControlUi()
-                    onSliderFocusRequest()
-                }
-                true
-            }
-
-            Key.DirectionUp -> {
-                playerState.showControlUi()
-                true
-            }
-
-            Key.DirectionDown -> {
-                playerState.showControlUi()
-                true
-            }
-
-            Key.DirectionCenter, Key.Spacebar -> {
-                if (!playerState.isControlUiVisible.value) {
-                    if (playerState.isPlaying.value) {
-                        playerState.showControlUi()
-                        playerState.control.pause()
-                    } else {
-                        playerState.control.play()
-                    }
-                }
-                true
-            }
-
-            else -> false
-        } else {
-        false
-    }
-}
+private enum class FocusTarget { FORWARD, PLAY_PAUSE, EPISODE, SLIDER }
 
 @Composable
 private fun OptionsContent(
     video: Video,
     isAutoContinuePlayEnabled: Boolean,
     onAutoContinuePlayClick: (Boolean) -> Unit,
-    onForwardClick: () -> Unit = {}
+    onForwardClick: () -> Unit = {},
+    forwardFocusRequester: FocusRequester = remember { FocusRequester() }
 ) {
     var expanded by remember { mutableStateOf(false) }
     val (forwardFocused, forwardModifier) = rememberIsFocused()
@@ -475,6 +493,7 @@ private fun OptionsContent(
                 else Color.Transparent
             ),
             modifier = forwardModifier
+                .focusRequester(forwardFocusRequester)
         ) {
             Icon(
                 imageVector = Icons.Rounded.Forward85,
@@ -629,7 +648,7 @@ private fun VideoStateMessage(
             FloatingMessageIndicator(stringResource(R.string.auto_play_next, countdown))
         }
 
-        if (playerState.isSeeking.value) {
+        if (playerState.isSeeking.value && playerState.isControlUiVisible.value) {
             TimelineIndicator(
                 (playerState.videoDurationMs.value * playerState.videoProgress.value).toLong(),
                 playerState.videoDurationMs.value
@@ -965,6 +984,9 @@ private fun SpeedSideSheet(
     onDismissRequest: () -> Unit
 ) {
     val speeds = remember { Speeds.reversedArray() }
+    val focusRequester = remember { FocusRequester() }
+
+    BackHandler { onDismissRequest() }
 
     SideSheet(onDismissRequest = onDismissRequest, widthRatio = 0.2f) {
         Column(
@@ -975,12 +997,19 @@ private fun SpeedSideSheet(
             speeds.forEachIndexed { index, speed ->
                 AdaptiveTextButton(
                     text = speed.first,
-                    modifier = Modifier.size(MediumTextButtonSize),
+                    modifier = Modifier
+                        .size(MediumTextButtonSize)
+                        .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
                     onClick = { onSpeedClick(index, speed) },
                     color = if (selectedSpeedIndex == index) MaterialTheme.colorScheme.primary else Color.LightGray,
+                    fontWeight = if (selectedSpeedIndex == index) FontWeight.Bold else null,
                 )
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { focusRequester.requestFocus() }
     }
 }
 
@@ -990,6 +1019,9 @@ private fun ResizeSideSheet(
     onResizeClick: (Int, Pair<String, ResizeMode>) -> Unit,
     onDismissRequest: () -> Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+
+    BackHandler { onDismissRequest() }
 
     SideSheet(onDismissRequest = onDismissRequest, widthRatio = 0.2f) {
         Column(
@@ -1000,12 +1032,19 @@ private fun ResizeSideSheet(
             Resizes.forEachIndexed { index, resize ->
                 AdaptiveTextButton(
                     text = resize.first,
-                    modifier = Modifier.size(MediumTextButtonSize),
+                    modifier = Modifier
+                        .size(MediumTextButtonSize)
+                        .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
                     onClick = { onResizeClick(index, resize) },
                     color = if (selectedResizeIndex == index) MaterialTheme.colorScheme.primary else Color.LightGray,
+                    fontWeight = if (selectedResizeIndex == index) FontWeight.Bold else null,
                 )
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { focusRequester.requestFocus() }
     }
 }
 

@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -185,6 +186,10 @@ private fun VideoPlayer(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onPreviewKeyEvent {
+                playerState.onUserInteraction()
+                false // don't consume, pass through to children
+            }
             .defaultPlayerTapGestures(playerState, haptics)
             .defaultPlayerDragGestures(playerState)
     ) {
@@ -260,6 +265,10 @@ fun VideoPlayer(
     }
 
     BackHandler {
-        onBackPress()
+        if (playerState.isControlUiVisible.value) {
+            playerState.hideControlUi()
+        } else {
+            onBackPress()
+        }
     }
 }
