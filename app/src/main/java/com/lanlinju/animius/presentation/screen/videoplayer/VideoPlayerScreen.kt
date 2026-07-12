@@ -213,7 +213,11 @@ fun VideoPlayScreen(
                     .focusable()
                     .onKeyEvent { event ->
                         // Hidden-UI shortcuts: intercept when controls are hidden
-                        if (playerState.isControlUiVisible.value) return@onKeyEvent false
+                        // Also skip when any side sheet is open — let it handle its own keys
+                        if (playerState.isControlUiVisible.value ||
+                            playerState.isEpisodeUiVisible.value ||
+                            playerState.isSpeedUiVisible.value ||
+                            playerState.isResizeUiVisible.value) return@onKeyEvent false
                         if (event.type == KeyEventType.KeyDown) {
                             when (event.key) {
                                 Key.DirectionLeft -> {
@@ -360,6 +364,8 @@ private fun ShowLoadingPage() {
 // Failure screen composable
 @Composable
 private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> Unit) {
+    val retryFocusRequester = remember { FocusRequester() }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -396,6 +402,7 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
         val (retryActive, retryInteractionSource) = rememberInteractionFocus()
         OutlinedButton(
             onClick = { viewModel.retry() },
+            modifier = Modifier.focusRequester(retryFocusRequester),
             interactionSource = retryInteractionSource,
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = if (retryActive) MaterialTheme.colorScheme.primary
@@ -406,6 +413,10 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
         ) {
             Text(text = stringResource(id = R.string.retry))
         }
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { retryFocusRequester.requestFocus() }
     }
 }
 

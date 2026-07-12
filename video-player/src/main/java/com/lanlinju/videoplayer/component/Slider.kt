@@ -50,6 +50,7 @@ fun Slider(
     trackColor: Color = Color.LightGray.copy(alpha = 0.38f),
     secondTrackColor: Color =Color.LightGray.copy(alpha = 0.78f),
     isSeeking: Boolean = false,
+    onDpadUpDown: (() -> Unit)? = null,
     focusRequester: FocusRequester = remember { FocusRequester() },
     durationMs: Long = 0L,
 ) {
@@ -81,6 +82,14 @@ fun Slider(
                         Key.DirectionLeft -> {
                             onClick((value - stepFraction).coerceIn(0f, 1f))
                             true
+                        }
+                        Key.DirectionUp, Key.DirectionDown -> {
+                            if (isSeeking) {
+                                onDpadUpDown?.invoke()
+                                true
+                            } else {
+                                false // let focus system handle spatial navigation
+                            }
                         }
                         else -> false
                     }

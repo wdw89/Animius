@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -69,7 +70,6 @@ fun VideoPlayerControl(
     state: VideoPlayerState,
     title: String,
     subtitle: String? = null,
-    background: Color = Color.Black.copy(0.2f),
     contentColor: Color = Color.LightGray,
     progressLineColor: Color = MaterialTheme.colorScheme.inversePrimary,
     danmakuEnabled: Boolean,
@@ -85,40 +85,56 @@ fun VideoPlayerControl(
     episodeFocusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     CompositionLocalProvider(LocalContentColor provides contentColor) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(background)
-                .padding(
-                    start = horizontalPadding(),
-                    end = horizontalPadding(),
-                    top = 18.dp
+        Box(modifier = modifier.fillMaxSize()) {
+            // Gradient overlay — hidden during seeking (compact slider-only mode)
+            if (!state.isSeeking.value) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(0.55f),
+                                0.25f to Color.Transparent,
+                                0.75f to Color.Transparent,
+                                1f to Color.Black.copy(0.55f),
+                            )
+                        )
                 )
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+            }
+
+            // Controls on top of the gradient
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = horizontalPadding(),
+                        end = horizontalPadding(),
+                        top = 18.dp
+                    )
             ) {
-                ControlHeader(
-                    modifier = Modifier.fillMaxWidth(),
-                    title = title,
-                    subtitle = subtitle,
-                    isSeeking = state.isSeeking.value,
-                    onBackClick = onBackClick,
-                    optionsContent = optionsContent,
-                    backFocusRequester = backFocusRequester,
-                    sliderFocusRequester = sliderFocusRequester,
-                )
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    ControlHeader(
+                        modifier = Modifier.fillMaxWidth(),
+                        title = title,
+                        subtitle = subtitle,
+                        isSeeking = state.isSeeking.value,
+                        onBackClick = onBackClick,
+                        optionsContent = optionsContent,
+                        backFocusRequester = backFocusRequester,
+                        sliderFocusRequester = sliderFocusRequester,
+                    )
 
-                Spacer(Modifier.size(1.dp))
+                    Spacer(Modifier.weight(1f))
 
-                BottomControlBar(
-                    modifier = Modifier.fillMaxWidth(),
-                    progressLineColor = progressLineColor,
-                    state = state,
-                    enabledDanmaku = danmakuEnabled,
-                    onNextClick = onNextClick,
+                    BottomControlBar(
+                        modifier = Modifier.fillMaxWidth(),
+                        progressLineColor = progressLineColor,
+                        state = state,
+                        enabledDanmaku = danmakuEnabled,
+                        onNextClick = onNextClick,
                     onDanmakuClick = onDanmakuClick,
                     sliderFocusRequester = sliderFocusRequester,
                     backFocusRequester = backFocusRequester,
@@ -128,6 +144,7 @@ fun VideoPlayerControl(
             }
         }
     }
+}
 }
 
 @Composable
@@ -238,6 +255,7 @@ private fun BottomControlBar(
                     down = playPauseFocusRequester
                 },
             isSeeking = state.isSeeking.value,
+            onDpadUpDown = { state.showControlUi() },
             color = progressLineColor,
             focusRequester = sliderFocusRequester,
             durationMs = state.videoDurationMs.value,
