@@ -159,7 +159,6 @@ fun Slider(
         // thumb
         Box(
             modifier = Modifier
-                .clip(CircleShape)
                 .align(
                     BiasAlignment(
                         horizontalBias = (value * 2) - 1f,
@@ -167,8 +166,8 @@ fun Slider(
                     )
                 )
                 .size(thumbSize)
-                .border(if (isActive) 3.dp else 0.dp, Color.White, CircleShape)
-                .background(color)
+                .then(if (isActive) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                .background(color, CircleShape)
         )
     }
 }
