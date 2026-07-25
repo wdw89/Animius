@@ -138,7 +138,6 @@ import com.lanlinju.animius.util.KEY_AUTO_ORIENTATION_ENABLED
 import com.lanlinju.animius.util.KEY_DANMAKU_CONFIG_DATA
 import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isTabletDevice
-import com.lanlinju.animius.util.focus.rememberInteractionFocus
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.openExternalPlayer
@@ -212,6 +211,17 @@ fun VideoPlayScreen(
                     .adaptiveSize(playerState.isFullscreen.value, view, activity)
                     .focusable()
                     .onKeyEvent { event ->
+                        // Back key: immediately hide any visible player UI
+                        // Intercepted here because OnBackPressedDispatcher/BackHandler
+                        // does not fire reliably on tablet/non-TV Compose for the first press.
+                        if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
+                            when {
+                                playerState.isSpeedUiVisible.value -> { playerState.hideSpeedUi(); return@onKeyEvent true }
+                                playerState.isResizeUiVisible.value -> { playerState.hideResizeUi(); return@onKeyEvent true }
+                                playerState.isEpisodeUiVisible.value -> { playerState.hideEpisodeUi(); return@onKeyEvent true }
+                                playerState.isControlUiVisible.value -> { playerState.hideControlUi(); return@onKeyEvent true }
+                            }
+                        }
                         // Hidden-UI shortcuts: intercept when controls are hidden
                         // Also skip when any side sheet is open — let it handle its own keys
                         if (playerState.isControlUiVisible.value ||
@@ -245,9 +255,13 @@ fun VideoPlayScreen(
                                     true
                                 }
                                 Key.DirectionCenter, Key.Spacebar -> {
-                                    if (playerState.isPlaying.value) playerState.control.pause()
-                                    playerState.showControlUi()
-                                    pendingFocusTarget = FocusTarget.PLAY_PAUSE
+                                    if (playerState.isPlaying.value) {
+                                        playerState.control.pause()
+                                        playerState.showControlUi()
+                                        pendingFocusTarget = FocusTarget.PLAY_PAUSE
+                                    } else {
+                                        playerState.control.play()
+                                    }
                                     true
                                 }
                                 else -> false
@@ -385,29 +399,28 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        val (backActive, backInteractionSource) = rememberInteractionFocus()
+        val (backFocused, backModifier) = rememberIsFocused()
         OutlinedButton(
             onClick = onBackClick,
-            interactionSource = backInteractionSource,
+            modifier = Modifier.then(backModifier),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (backActive) MaterialTheme.colorScheme.primary
+                containerColor = if (backFocused) MaterialTheme.colorScheme.primary
                 else Color.Transparent,
-                contentColor = if (backActive) MaterialTheme.colorScheme.onPrimary
+                contentColor = if (backFocused) MaterialTheme.colorScheme.onPrimary
                 else Color.White
             )
         ) {
             Text(text = stringResource(id = R.string.back))
         }
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
-        val (retryActive, retryInteractionSource) = rememberInteractionFocus()
+        val (retryFocused, retryModifier) = rememberIsFocused()
         OutlinedButton(
             onClick = { viewModel.retry() },
-            modifier = Modifier.focusRequester(retryFocusRequester),
-            interactionSource = retryInteractionSource,
+            modifier = Modifier.focusRequester(retryFocusRequester).then(retryModifier),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (retryActive) MaterialTheme.colorScheme.primary
+                containerColor = if (retryFocused) MaterialTheme.colorScheme.primary
                 else Color.Transparent,
-                contentColor = if (retryActive) MaterialTheme.colorScheme.onPrimary
+                contentColor = if (retryFocused) MaterialTheme.colorScheme.onPrimary
                 else MaterialTheme.colorScheme.primary
             )
         ) {

@@ -1,9 +1,6 @@
 package com.lanlinju.animius.presentation.screen.settings
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,7 +61,7 @@ import com.lanlinju.animius.presentation.screen.settings.DanmakuConfigData.Compa
 import com.lanlinju.animius.util.KEY_DANMAKU_CONFIG_DATA
 import com.lanlinju.animius.util.KEY_DANMAKU_ENABLED
 import com.lanlinju.animius.util.rememberPreference
-import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.serialization.Serializable
 import java.util.UUID
@@ -185,17 +182,17 @@ fun DanmakuFontPreview(
 
 @Composable
 fun ResetButton(onReset: () -> Unit) {
-    val (isActive, interactionSource) = rememberInteractionFocus()
+    val (isFocused, focusModifier) = rememberIsFocused()
     Button(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(16.dp)
+            .then(focusModifier),
         onClick = onReset,
-        interactionSource = interactionSource,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isActive) MaterialTheme.colorScheme.primary
+            containerColor = if (isFocused) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+            contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
             else MaterialTheme.colorScheme.onSurface
         )
     ) {

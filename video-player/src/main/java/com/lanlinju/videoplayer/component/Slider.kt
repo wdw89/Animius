@@ -166,7 +166,7 @@ fun Slider(
                     )
                 )
                 .size(thumbSize)
-                .then(if (isActive) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                .then(if (isFocused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
                 .background(color, CircleShape)
         )
     }

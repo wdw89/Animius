@@ -139,6 +139,7 @@ import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.log
 import com.lanlinju.animius.util.rememberPreference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import com.lanlinju.animius.R as Res
@@ -942,6 +943,8 @@ private fun EpisodeBottomSheet(
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
 
+    val firstItemFocusRequester = remember { FocusRequester() }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState
@@ -960,11 +963,13 @@ private fun EpisodeBottomSheet(
             itemsIndexed(
                 items = if (!reverseList) episodes else episodes.reversed(),
                 key = { _, e -> e.url }) { index, episode ->
+                val focusModifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier
                 val chipInteractionSource = remember { MutableInteractionSource() }
                 val isChipFocused by chipInteractionSource.collectIsFocusedAsState()
                 val isChipPressed by chipInteractionSource.collectIsPressedAsState()
                 val isChipActive = isChipFocused || isChipPressed
                 SuggestionChip(
+                    modifier = focusModifier,
                     onClick = {
                         when {
                             isDownload -> onDownloadClick(index, episode)
@@ -994,6 +999,11 @@ private fun EpisodeBottomSheet(
                     }
                 )
             }
+        }
+
+        LaunchedEffect(Unit) {
+            delay(200) // wait for ModalBottomSheet animation
+            runCatching { firstItemFocusRequester.requestFocus() }
         }
     }
 }

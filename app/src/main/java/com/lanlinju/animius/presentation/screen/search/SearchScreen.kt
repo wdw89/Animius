@@ -10,8 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +77,7 @@ import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.util.isWideScreen
-import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,7 +133,7 @@ fun SearchScreen(
             title = { Text("需要验证码验证") },
             text = { Text("搜索时遇到验证码，请完成验证后重试") },
             confirmButton = {
-                val (isActive, interactionSource) = rememberInteractionFocus()
+                val (isFocused, focusModifier) = rememberIsFocused()
                 TextButton(
                     onClick = {
                         viewModel.clearNeedCaptcha()
@@ -143,11 +141,11 @@ fun SearchScreen(
                             CaptchaWebViewActivity.createIntent(context, url)
                         )
                     },
-                    interactionSource = interactionSource,
+                    modifier = Modifier.then(focusModifier),
                     colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                         else Color.Transparent,
-                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                        contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.primary
                     )
                 ) {
@@ -155,14 +153,14 @@ fun SearchScreen(
                 }
             },
             dismissButton = {
-                val (isActive, interactionSource) = rememberInteractionFocus()
+                val (isFocused, focusModifier) = rememberIsFocused()
                 TextButton(
                     onClick = { viewModel.clearNeedCaptcha() },
-                    interactionSource = interactionSource,
+                    modifier = Modifier.then(focusModifier),
                     colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                         else Color.Transparent,
-                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                        contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.primary
                     )
                 ) {

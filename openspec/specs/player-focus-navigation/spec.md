@@ -109,6 +109,14 @@ When the player control overlay becomes visible via D-pad input or initial load,
 - **AND** the control overlay becomes visible
 - **AND** focus is placed on the play/pause button
 
+#### Scenario: OK/Center resumes while paused with hidden UI
+- **WHEN** user presses OK/Center on D-pad while controls are hidden
+- **AND** the video is currently paused
+- **AND** no side sheet is visible
+- **THEN** playback resumes
+- **AND** the control overlay becomes visible
+- **AND** focus is placed on the play/pause button
+
 #### Scenario: UP/DOWN key during compact seek mode exits to full UI
 - **WHEN** the slider has focus in compact seek mode (after LEFT/RIGHT with hidden UI)
 - **AND** the compact overlay is showing (slider + timestamp only)

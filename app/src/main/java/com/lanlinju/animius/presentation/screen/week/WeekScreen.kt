@@ -110,7 +110,6 @@ import com.lanlinju.animius.util.TABS
 import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
-import com.lanlinju.animius.util.focus.rememberInteractionFocus
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -654,14 +653,14 @@ fun VersionUpdateDialog(
             }
         },
         confirmButton = {
-            val (isActive, interactionSource) = rememberInteractionFocus()
+            val (isFocused, focusModifier) = rememberIsFocused()
             TextButton(
                 onClick = { onDownloadUpdate(lifecycleOwner) },
-                interactionSource = interactionSource,
+                modifier = Modifier.then(focusModifier),
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.primary
                 )
             ) {
@@ -669,14 +668,14 @@ fun VersionUpdateDialog(
             }
         },
         dismissButton = {
-            val (isActive, interactionSource) = rememberInteractionFocus()
+            val (isFocused, focusModifier) = rememberIsFocused()
             TextButton(
                 onClick = onDismissUpdateDialog,
-                interactionSource = interactionSource,
+                modifier = Modifier.then(focusModifier),
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.primary
                 )
             ) {
@@ -707,14 +706,14 @@ private fun LoadingIndicationDialog(
         },
         confirmButton = {},
         dismissButton = {
-            val (isActive, interactionSource) = rememberInteractionFocus()
+            val (isFocused, focusModifier) = rememberIsFocused()
             TextButton(
                 onClick = onDismissRequest,
-                interactionSource = interactionSource,
+                modifier = Modifier.then(focusModifier),
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.primary
                 )
             ) {
@@ -802,14 +801,14 @@ fun SourceSwitchDialog(
         },
         confirmButton = {},
         dismissButton = {
-            val (isActive, interactionSource) = rememberInteractionFocus()
+            val (isFocused, focusModifier) = rememberIsFocused()
             TextButton(
                 onClick = onDismissRequest,
-                interactionSource = interactionSource,
+                modifier = Modifier.then(focusModifier),
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                     else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.primary
                 )
             ) {

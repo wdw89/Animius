@@ -1,9 +1,6 @@
 package com.lanlinju.animius.presentation.component
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
@@ -20,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.lanlinju.animius.R
-import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @Composable
 fun WarningMessage(
@@ -50,14 +47,14 @@ fun WarningMessage(
             style = MaterialTheme.typography.bodyMedium
         )
         if (onRetryClick != null) {
-            val (isActive, interactionSource) = rememberInteractionFocus()
+            val (isFocused, focusModifier) = rememberIsFocused()
             OutlinedButton(
                 onClick = onRetryClick,
-                interactionSource = interactionSource,
+                modifier = Modifier.then(focusModifier),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
+                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.surface,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.primary
                 )
             ) {

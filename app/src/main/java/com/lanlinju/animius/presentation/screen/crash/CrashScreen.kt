@@ -2,9 +2,6 @@ package com.lanlinju.animius.presentation.screen.crash
 
 import android.content.ClipData
 import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +51,7 @@ import com.lanlinju.animius.presentation.theme.SECONDARY_ALPHA
 import com.lanlinju.animius.presentation.theme.padding
 import com.lanlinju.animius.util.shareCrashLog
 import com.lanlinju.animius.util.toast
-import com.lanlinju.animius.util.focus.rememberInteractionFocus
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 
 @Composable
@@ -154,31 +151,29 @@ fun InfoScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val (acceptActive, acceptInteractionSource) = rememberInteractionFocus()
+                    val (acceptFocused, acceptModifier) = rememberIsFocused()
                     Button(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).then(acceptModifier),
                         enabled = canAccept,
                         onClick = onAcceptClick,
-                        interactionSource = acceptInteractionSource,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (acceptActive) MaterialTheme.colorScheme.primary
+                            containerColor = if (acceptFocused) MaterialTheme.colorScheme.primary
                             else ButtonDefaults.buttonColors().containerColor,
-                            contentColor = if (acceptActive) MaterialTheme.colorScheme.onPrimary
+                            contentColor = if (acceptFocused) MaterialTheme.colorScheme.onPrimary
                             else ButtonDefaults.buttonColors().contentColor
                         )
                     ) {
                         Text(text = acceptText)
                     }
                     if (onCopyClick != null) {
-                        val (copyActive, copyInteractionSource) = rememberInteractionFocus()
+                        val (copyFocused, copyModifier) = rememberIsFocused()
                         OutlinedButton(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).then(copyModifier),
                             onClick = onCopyClick,
-                            interactionSource = copyInteractionSource,
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (copyActive) MaterialTheme.colorScheme.primary
+                                containerColor = if (copyFocused) MaterialTheme.colorScheme.primary
                                 else Color.Transparent,
-                                contentColor = if (copyActive) MaterialTheme.colorScheme.onPrimary
+                                contentColor = if (copyFocused) MaterialTheme.colorScheme.onPrimary
                                 else MaterialTheme.colorScheme.primary
                             )
                         ) {
@@ -187,15 +182,14 @@ fun InfoScreen(
                     }
                 }
                 if (rejectText != null && onRejectClick != null) {
-                    val (rejectActive, rejectInteractionSource) = rememberInteractionFocus()
+                    val (rejectFocused, rejectModifier) = rememberIsFocused()
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().then(rejectModifier),
                         onClick = onRejectClick,
-                        interactionSource = rejectInteractionSource,
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (rejectActive) MaterialTheme.colorScheme.primary
+                            containerColor = if (rejectFocused) MaterialTheme.colorScheme.primary
                             else Color.Transparent,
-                            contentColor = if (rejectActive) MaterialTheme.colorScheme.onPrimary
+                            contentColor = if (rejectFocused) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.primary
                         )
                     ) {

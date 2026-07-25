@@ -6,9 +6,6 @@ import android.content.res.Configuration
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -422,18 +419,14 @@ fun AdaptiveTextButton(
     style: TextStyle = MaterialTheme.typography.bodyMedium,
     fontWeight: FontWeight? = null,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val isActive = isFocused || isPressed
+    var isFocused by remember { mutableStateOf(false) }
     AdaptiveIconButton(
-        modifier = modifier.size(MediumIconButtonSize),
+        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
         onClick = onClick,
-        interactionSource = interactionSource
     ) {
         Text(
             text = text,
-            color = if (isActive) MaterialTheme.colorScheme.onPrimary else color,
+            color = if (isFocused) MaterialTheme.colorScheme.onPrimary else color,
             style = style,
             fontWeight = fontWeight,
         )
@@ -445,22 +438,19 @@ private fun AdaptiveIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    enabledIndication: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val isActive = isFocused || isPressed
+    var isFocused by remember { mutableStateOf(false) }
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(MediumIconButtonSize),
+        modifier = modifier
+            .size(MediumIconButtonSize)
+            .onFocusChanged { isFocused = it.isFocused },
         enabled = enabled,
-        interactionSource = interactionSource,
         colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (isActive) MaterialTheme.colorScheme.primary
+            containerColor = if (isFocused) MaterialTheme.colorScheme.primary
             else Color.Transparent,
-            contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+            contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
             else LocalContentColor.current
         )
     ) {

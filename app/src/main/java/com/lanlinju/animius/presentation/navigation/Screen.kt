@@ -27,7 +27,7 @@ sealed class Screen {
     object DanmakuSettings : Screen()
 
     @Serializable
-    data class DownloadDetail(val detailUrl: String, val title: String) : Screen()
+    data class DownloadDetail(val detailUrl: String, val title: String, val sourceMode: SourceMode) : Screen()
 
     @Serializable
     data class AnimeDetail(val detailUrl: String, val mode: SourceMode) : Screen()

@@ -31,6 +31,18 @@ All interactive button-like components across the app SHALL display `primary` ba
 - **WHEN** D-pad navigation focuses a `DropdownMenuItem`
 - **THEN** the item displays `primary` background with `onPrimary`-tinted icon and text
 
+#### Scenario: DropdownMenuItem in download long-press menu receives focus
+- **WHEN** D-pad navigation focuses a `DropdownMenuItem` in the download screen's `PopupMenuListItem` long-press menu
+- **THEN** the item displays `MaterialTheme.colorScheme.primary` background and `MaterialTheme.colorScheme.onPrimary` text color
+
+#### Scenario: DropdownMenuItem in favorites long-press menu receives focus
+- **WHEN** D-pad navigation focuses the delete `DropdownMenuItem` in the favorites screen long-press menu
+- **THEN** the item displays `primary` background with `onPrimary` text color
+
+#### Scenario: DropdownMenuItem in player options menu receives focus
+- **WHEN** D-pad navigation focuses a `DropdownMenuItem` in the video player options menu
+- **THEN** the item displays `primary` background with `onPrimary`-tinted icon and text
+
 #### Scenario: Clickable Box/Row receives focus
 - **WHEN** D-pad navigation focuses a clickable `Box`, `Row`, or `Surface`
 - **THEN** the container displays `primary` background with `onPrimary`-tinted content
