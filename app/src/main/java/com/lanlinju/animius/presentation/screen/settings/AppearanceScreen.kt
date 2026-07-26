@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Colorize
+import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -181,6 +182,17 @@ fun AppearanceScreen(
                 onCheckedChange = {
                     isDynamicImageColor = it
                     SettingsPreferences.changeDynamicColor(!isDynamicImageColor)
+                }
+            )
+
+            val pureBackground by SettingsPreferences.pureBackground.collectAsState()
+            SwitchPref(
+                title = stringResource(id = R.string.pure_background),
+                summary = stringResource(id = R.string.pure_background_description),
+                painter = rememberVectorPainter(image = Icons.Outlined.Contrast),
+                checked = pureBackground,
+                onCheckedChange = {
+                    SettingsPreferences.changePureBackground(it)
                 }
             )
         }

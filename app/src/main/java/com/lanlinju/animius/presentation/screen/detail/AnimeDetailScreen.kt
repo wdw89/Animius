@@ -182,13 +182,18 @@ fun AnimeDetailScreen(
                 var showDownloadBottomSheet by remember { mutableStateOf(false) }
                 val focusManager = LocalFocusManager.current
 
-                val background = Color(
-                    ColorUtils.blendARGB(
-                        MaterialTheme.colorScheme.background.toArgb(),
-                        MaterialTheme.colorScheme.primaryContainer.toArgb(),
-                        0.05f
+                val pureBackground by SettingsPreferences.pureBackground.collectAsState()
+                val background = if (pureBackground) {
+                    MaterialTheme.colorScheme.background
+                } else {
+                    Color(
+                        ColorUtils.blendARGB(
+                            MaterialTheme.colorScheme.background.toArgb(),
+                            MaterialTheme.colorScheme.primaryContainer.toArgb(),
+                            0.05f
+                        )
                     )
-                )
+                }
 
                 Box(
                     modifier = Modifier

@@ -85,6 +85,7 @@ import com.lanlinju.animius.presentation.component.TranslucentStatusBarLayout
 import com.lanlinju.animius.presentation.component.WarningMessage
 import com.lanlinju.animius.util.KEY_HOME_BACKGROUND_URI
 import com.lanlinju.animius.util.KEY_USE_GRID_LAYOUT
+import com.lanlinju.animius.util.SettingsPreferences
 import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.presentation.screen.week.SourceSwitchDialog
@@ -313,6 +314,8 @@ private fun Tab(
 
 @Composable
 fun getBlendedBackgroundColor(): Color {
+    val pureBackground by SettingsPreferences.pureBackground.collectAsState()
+    if (pureBackground) return MaterialTheme.colorScheme.background
     return Color(
         ColorUtils.blendARGB(
             MaterialTheme.colorScheme.background.toArgb(),
