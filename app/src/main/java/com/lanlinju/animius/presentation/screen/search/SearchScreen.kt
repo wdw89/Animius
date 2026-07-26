@@ -8,7 +8,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -36,7 +37,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,11 +46,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -58,7 +59,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
@@ -75,7 +75,6 @@ import com.lanlinju.animius.presentation.component.PaginationStateHandler
 import com.lanlinju.animius.presentation.component.WarningMessage
 import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
 import com.lanlinju.animius.util.SourceMode
-import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.focus.rememberIsFocused
 
@@ -92,9 +91,11 @@ fun SearchScreen(
     val needCaptchaUrl by viewModel.needCaptchaUrl.collectAsState()
     var menuExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    val searchBarFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     var isEditing by remember { mutableStateOf(true) }
+    var searchBarHeight by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
+    val navFocusRequester = remember { FocusRequester() }
 
     // PagingSource 加载完成后检查是否需要验证码
     // 不能在 collect 中检查，因为 PagingData 在加载前就 emit 了
@@ -111,7 +112,7 @@ fun SearchScreen(
         if (isEditing) {
             focusRequester.requestFocus()
         } else {
-            searchBarFocusRequester.requestFocus()
+            navFocusRequester.requestFocus()
         }
     }
 
@@ -179,9 +180,12 @@ fun SearchScreen(
             keyboardController?.hide()
             isEditing = false
         }
+        BackHandler(enabled = !isEditing && !menuExpanded) {
+            onBackClick()
+        }
 
-        Column(Modifier.fillMaxSize()) {
-        // 搜索栏 - 编辑/非编辑模式统一布局
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        // 搜索栏 - InputField 测量高度 → 非编辑 Row 精确匹配，零跳动
         if (isEditing) {
             SearchBarDefaults.InputField(
                 query = searchQuery,
@@ -269,15 +273,25 @@ fun SearchScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp)
+                    .padding(horizontal = 8.dp)
                     .focusRequester(focusRequester)
+                    .onGloballyPositioned { coordinates ->
+                        searchBarHeight = with(density) { coordinates.size.height.toDp() }
+                    }
                     .onPreviewKeyEvent { event ->
-                        // In editing mode, consume UP/DOWN so focus stays in the text field.
-                        // LEFT/RIGHT pass through for cursor movement.
-                        if (event.type == KeyEventType.KeyDown &&
-                            (event.key == Key.DirectionUp || event.key == Key.DirectionDown)
-                        ) {
-                            true
+                        if (event.type == KeyEventType.KeyDown) {
+                            when (event.key) {
+                                Key.DirectionUp, Key.DirectionDown -> true
+                                Key.DirectionCenter -> {
+                                    if (searchQuery.isNotEmpty()) {
+                                        viewModel.onSearch(searchQuery, viewModel.currentSourceMode)
+                                    }
+                                    keyboardController?.hide()
+                                    isEditing = false
+                                    true
+                                }
+                                else -> false
+                            }
                         } else {
                             false
                         }
@@ -288,7 +302,8 @@ fun SearchScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .height(searchBarHeight)
+                    .padding(start = 12.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -310,7 +325,7 @@ fun SearchScreen(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .focusRequester(searchBarFocusRequester)
+                        .focusRequester(navFocusRequester)
                         .onFocusChanged { isNavFocused = it.isFocused }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -336,73 +351,73 @@ fun SearchScreen(
                             else MaterialTheme.colorScheme.surfaceVariant
                         )
                         .padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Text(
-                            text = searchQuery.ifEmpty { stringResource(id = R.string.lbl_search_placeholder) },
-                            color = when {
-                                isNavFocused -> MaterialTheme.colorScheme.onPrimary
-                                searchQuery.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
-                                else -> MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                ) {
+                    Text(
+                        text = searchQuery.ifEmpty { stringResource(id = R.string.lbl_search_placeholder) },
+                        color = when {
+                            isNavFocused -> MaterialTheme.colorScheme.onPrimary
+                            searchQuery.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.onSurface
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-                    var clearFocused by remember { mutableStateOf(false) }
+                var clearFocused by remember { mutableStateOf(false) }
+                IconButton(
+                    onClick = viewModel::clearSearchQuery,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = if (clearFocused) MaterialTheme.colorScheme.primary else Color.Transparent
+                    ),
+                    modifier = Modifier.onFocusChanged { clearFocused = it.isFocused }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Clear,
+                        contentDescription = stringResource(id = R.string.clear),
+                        tint = if (clearFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                var moreFocused by remember { mutableStateOf(false) }
+                Box {
                     IconButton(
-                        onClick = viewModel::clearSearchQuery,
+                        onClick = { menuExpanded = true },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (clearFocused) MaterialTheme.colorScheme.primary else Color.Transparent
+                            containerColor = if (moreFocused) MaterialTheme.colorScheme.primary else Color.Transparent
                         ),
-                        modifier = Modifier.onFocusChanged { clearFocused = it.isFocused }
+                        modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Clear,
-                            contentDescription = stringResource(id = R.string.clear),
-                            tint = if (clearFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = stringResource(id = R.string.more),
+                            tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                         )
                     }
 
-                    var moreFocused by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(
-                            onClick = { menuExpanded = true },
-                            colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = if (moreFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                            ),
-                            modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(id = R.string.more),
-                                tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        SourceMode.entries.forEach { mode ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = mode.name,
+                                        color = if (viewModel.currentSourceMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    viewModel.currentSourceMode = mode
+                                    viewModel.getSearchData(searchQuery, mode)
+                                },
                             )
-                        }
-
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            SourceMode.entries.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = mode.name,
-                                            color = if (viewModel.currentSourceMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
-                                    onClick = {
-                                        menuExpanded = false
-                                        viewModel.currentSourceMode = mode
-                                        viewModel.getSearchData(searchQuery, mode)
-                                    },
-                                )
-                            }
                         }
                     }
                 }
             }
+        }
 
             // 搜索结果 - 始终在搜索栏下方显示
             val context = LocalContext.current
