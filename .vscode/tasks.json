@@ -1,5 +1,18 @@
 {
     "version": "2.0.0",
+    "inputs": [
+        {
+            "id": "deviceSerial",
+            "type": "pickString",
+            "description": "选择目标设备",
+            "options": [
+                "emulator-5556",
+                "NXFo208BAE76z281009",
+                "192.168.31.216:5555"
+            ],
+            "default": "emulator-5556"
+        }
+    ],
     "tasks": [
         {
             "label": "install & launch (debug)",
@@ -22,9 +35,9 @@
             }
         },
         {
-            "label": "install & launch (debug, single device)",
+            "label": "install & launch (emulator only)",
             "type": "shell",
-            "command": "./gradlew :app:installDebug && adb shell am start -n com.lanlinju.animius/.MainActivity 2>&1 | head -1",
+            "command": "./gradlew :app:installDebug && adb -s ${input:deviceSerial} shell am start -n com.lanlinju.animius/.MainActivity",
             "problemMatcher": [],
             "presentation": {
                 "reveal": "always",
@@ -33,7 +46,8 @@
             "options": {
                 "cwd": "${workspaceFolder}",
                 "env": {
-                    "JAVA_HOME": "C:/Program Files/Android/Android Studio/jbr"
+                    "JAVA_HOME": "C:/Program Files/Android/Android Studio/jbr",
+                    "ANDROID_SERIAL": "${input:deviceSerial}"
                 }
             }
         }
