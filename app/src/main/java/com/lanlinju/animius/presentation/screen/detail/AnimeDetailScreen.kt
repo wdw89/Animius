@@ -711,8 +711,7 @@ fun AnimeEpisodes(
         itemsIndexed(displayList, key = { _, episode -> episode.url }) { index, episode ->
             val interactionSource = remember { MutableInteractionSource() }
             val isFocused by interactionSource.collectIsFocusedAsState()
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val isActive = isFocused || isPressed
+            val isActive = isFocused
             val isLastPlayed = index == targetIndex
             FilledTonalButton(
                 onClick = { onEpisodeClick(index, episode) },
@@ -971,8 +970,7 @@ private fun EpisodeBottomSheet(
                 val focusModifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier
                 val chipInteractionSource = remember { MutableInteractionSource() }
                 val isChipFocused by chipInteractionSource.collectIsFocusedAsState()
-                val isChipPressed by chipInteractionSource.collectIsPressedAsState()
-                val isChipActive = isChipFocused || isChipPressed
+                val isChipActive = isChipFocused
                 SuggestionChip(
                     modifier = focusModifier,
                     onClick = {

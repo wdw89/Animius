@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -111,6 +110,7 @@ import com.lanlinju.animius.util.TABS
 import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.focusBorder
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -335,17 +335,15 @@ fun WeekItem(
     onClick: () -> Unit
 ) {
 
-    val (isFocused, focusModifier) = rememberIsFocused()
     val cardShape = RoundedCornerShape(12.dp)
 
     ElevatedCard(
         modifier = modifier
             .height(80.dp)
-            .then(focusModifier)
-            .border(
+            .focusBorder(
+                shape = cardShape,
                 width = 3.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = cardShape
+                focusedColor = MaterialTheme.colorScheme.primary,
             ),
         onClick = onClick,
         elevation = CardDefaults.elevatedCardElevation(

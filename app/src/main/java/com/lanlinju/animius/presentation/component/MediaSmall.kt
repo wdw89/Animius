@@ -2,7 +2,6 @@ package com.lanlinju.animius.presentation.component
 
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.lanlinju.animius.util.CROSSFADE_DURATION
-import com.lanlinju.animius.util.focus.rememberIsFocused
+import com.lanlinju.animius.util.focus.focusBorder
 import com.lanlinju.animius.R as Res
 
 /**
@@ -77,7 +76,6 @@ fun MediaSmall(
     label: String? = null,
     onSuccess: (Bitmap) -> Unit = { }
 ) {
-    val (isFocused, focusModifier) = rememberIsFocused()
     val cardShape = RoundedCornerShape(dimensionResource(Res.dimen.media_card_corner_radius))
 
     Card(
@@ -92,11 +90,10 @@ fun MediaSmall(
             disabledElevation = 0.dp,
         ),
         modifier = modifier
-            .then(focusModifier)
-            .border(
+            .focusBorder(
+                shape = cardShape,
                 width = 3.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = cardShape
+                focusedColor = MaterialTheme.colorScheme.primary,
             ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
