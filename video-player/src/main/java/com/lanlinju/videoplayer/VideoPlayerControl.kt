@@ -90,10 +90,10 @@ fun VideoPlayerControl(
                         .matchParentSize()
                         .background(
                             Brush.verticalGradient(
-                                0f to Color.Black.copy(0.55f),
-                                0.25f to Color.Transparent,
-                                0.75f to Color.Transparent,
-                                1f to Color.Black.copy(0.55f),
+                                0f to Color.Black.copy(0.75f),
+                                0.35f to Color.Transparent,
+                                0.65f to Color.Transparent,
+                                1f to Color.Black.copy(0.75f),
                             )
                         )
                 )

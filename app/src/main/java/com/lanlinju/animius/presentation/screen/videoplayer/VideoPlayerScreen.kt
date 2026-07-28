@@ -120,6 +120,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.C
 import com.anime.danmaku.api.DanmakuEvent
 import com.anime.danmaku.api.DanmakuPresentation
 import com.anime.danmaku.api.DanmakuSession
@@ -296,9 +297,24 @@ fun VideoPlayScreen(
                         }
                     }
 
+                    val videoSize = playerState.videoSize.value
+                    val subtitle = if (videoSize.width > 0 && videoSize.height > 0) {
+                        val resolution = "${videoSize.width}×${videoSize.height}"
+                        val bitrate = playerState.player.currentTracks.groups
+                            .firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
+                            ?.getTrackFormat(0)?.bitrate
+                            ?.takeIf { it > 0 }
+                        if (bitrate != null) {
+                            "$resolution · ${"%.1f".format(bitrate / 1_000_000f)}Mbps"
+                        } else {
+                            resolution
+                        }
+                    } else null
+
                     VideoPlayerControl(
                         state = playerState,
                         title = "${video.title}-${video.episodeName}",
+                        subtitle = subtitle,
                         danmakuEnabled = danmakuEnabled,
                         onBackClick = { handleBackPress(playerState, onBackClick, view, activity) },
                         onNextClick = {
