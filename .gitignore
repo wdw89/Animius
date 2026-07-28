@@ -17,3 +17,5 @@ nul
 .mimocode
 .opencode
 openspec/
+docs/
+.vscode/
