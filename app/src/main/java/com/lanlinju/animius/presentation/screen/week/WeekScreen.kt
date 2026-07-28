@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -334,10 +335,28 @@ fun WeekItem(
     onClick: () -> Unit
 ) {
 
+    val (isFocused, focusModifier) = rememberIsFocused()
+    val cardShape = RoundedCornerShape(12.dp)
+
     ElevatedCard(
-        modifier = modifier.height(80.dp),
+        modifier = modifier
+            .height(80.dp)
+            .then(focusModifier)
+            .border(
+                width = 3.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = cardShape
+            ),
         onClick = onClick,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
+        elevation = CardDefaults.elevatedCardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            focusedElevation = 0.dp,
+            hoveredElevation = 0.dp,
+            draggedElevation = 0.dp,
+            disabledElevation = 0.dp,
+        ),
+        shape = cardShape,
     ) {
         Box(
             modifier = Modifier

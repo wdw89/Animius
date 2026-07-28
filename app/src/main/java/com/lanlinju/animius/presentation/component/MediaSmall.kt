@@ -19,14 +19,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
@@ -39,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.lanlinju.animius.util.CROSSFADE_DURATION
+import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.R as Res
 
 /**
@@ -81,16 +77,24 @@ fun MediaSmall(
     label: String? = null,
     onSuccess: (Bitmap) -> Unit = { }
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    val (isFocused, focusModifier) = rememberIsFocused()
     val cardShape = RoundedCornerShape(dimensionResource(Res.dimen.media_card_corner_radius))
 
     Card(
         onClick = onClick,
         enabled = enabled,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            focusedElevation = 0.dp,
+            hoveredElevation = 0.dp,
+            draggedElevation = 0.dp,
+            disabledElevation = 0.dp,
+        ),
         modifier = modifier
-            .onFocusChanged { isFocused = it.isFocused }
+            .then(focusModifier)
             .border(
-                width = if (isFocused) 3.dp else 0.dp,
+                width = 3.dp,
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                 shape = cardShape
             ),
@@ -98,70 +102,6 @@ fun MediaSmall(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),
         shape = cardShape,
-    ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(image)
-                .crossfade(CROSSFADE_DURATION)
-                .build(),
-            contentDescription = label,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.7f)
-                .clip(cardShape),
-            onSuccess = {
-                val bitmap = (it.result.drawable as BitmapDrawable).bitmap
-                onSuccess(bitmap)
-            }
-        )
-
-        if (label != null)
-            Box {
-                Text(
-                    text = " \n ",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 2,
-                    modifier = Modifier.padding(
-                        vertical = dimensionResource(Res.dimen.media_card_text_padding_vertical)
-                    )
-                )
-
-                Text(
-                    text = label,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 2,
-                    // TODO: Add a custom overflow indicator:
-                    //  https://proandroiddev.com/detect-text-overflow-in-jetpack-compose-56c0b83da5a5.
-                    overflow = TextOverflow.Visible,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = dimensionResource(Res.dimen.media_card_text_padding_horizontal),
-                            vertical = dimensionResource(Res.dimen.media_card_text_padding_vertical)
-                        )
-                )
-            }
-    }
-}
-
-@Composable
-fun MediaSmall(
-    image: String?,
-    modifier: Modifier = Modifier,
-    label: String? = null,
-    onSuccess: (Bitmap) -> Unit = { }
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        shape = RoundedCornerShape(dimensionResource(Res.dimen.media_card_corner_radius)),
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
