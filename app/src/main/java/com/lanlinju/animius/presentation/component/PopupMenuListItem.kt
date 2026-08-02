@@ -1,13 +1,9 @@
 package com.lanlinju.animius.presentation.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +22,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.lanlinju.animius.R
 import com.lanlinju.animius.util.VIDEO_ASPECT_RATIO
-import com.lanlinju.animius.util.focus.rememberIsFocused
+import com.lanlinju.animius.util.focus.FocusedDropdownMenuItem
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -73,24 +69,12 @@ fun PopupMenuListItem(
             ),
         ) {
 
-            val (focused, focusModifier) = rememberIsFocused()
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = menuText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (focused) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurface
-                    )
-                },
+            FocusedDropdownMenuItem(
+                text = menuText,
                 onClick = {
                     expanded = false
                     onMenuItemClick()
-                },
-                modifier = focusModifier.then(
-                    if (focused) Modifier.background(MaterialTheme.colorScheme.primary)
-                    else Modifier
-                )
+                }
             )
 
         }

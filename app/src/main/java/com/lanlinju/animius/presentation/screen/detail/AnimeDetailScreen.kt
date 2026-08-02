@@ -61,7 +61,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SuggestionChip
@@ -90,7 +89,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -133,6 +131,8 @@ import com.lanlinju.animius.util.SettingsPreferences
 import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.bannerParallax
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.handleDPadKeyEvents
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.dynamicColorOf
@@ -435,12 +435,7 @@ private fun TopAppBar(
         title = { },
         navigationIcon = {
             IconButton(
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = when {
-                        backFocused -> MaterialTheme.colorScheme.primary
-                        else -> Color.Transparent
-                    }
-                ),
+                colors = focusedIconButtonColors(backFocused, Color.White.copy(alpha = 0.85f)),
                 modifier = backFocusModifier,
                 onClick = onBackClick
             ) {
@@ -454,12 +449,7 @@ private fun TopAppBar(
         actions = {
             Box {
                 IconButton(
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = when {
-                            moreFocused -> MaterialTheme.colorScheme.primary
-                            else -> Color.Transparent
-                        }
-                    ),
+                    colors = focusedIconButtonColors(moreFocused, Color.White.copy(alpha = 0.85f)),
                     modifier = moreFocusModifier,
                     onClick = { expanded = true }
                 ) {
@@ -563,11 +553,9 @@ private fun FavouriteIcon(
             .handleDPadKeyEvents(
                 onDown = { focusManager.moveFocus(FocusDirection.Down) }
             ),
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = when {
-                isFocused -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-            }
+        colors = focusedIconButtonColors(
+            isFocused,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
         ),
         onClick = {
             val favourite = Favourite(
@@ -1057,7 +1045,7 @@ fun ChannelSelectorDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(channels.size) { index ->
-                    var itemFocused by remember { mutableStateOf(false) }
+                    val (itemFocused, itemModifier) = rememberIsFocused()
                     Text(
                         text = stringResource(Res.string.channel_number, index + 1),
                         color = when {
@@ -1072,7 +1060,7 @@ fun ChannelSelectorDialog(
                                 if (itemFocused) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.surfaceVariant
                             )
-                            .onFocusChanged { itemFocused = it.isFocused }
+                            .then(itemModifier)
                             .then(
                                 if (index == channelIndex) Modifier.focusRequester(selectedFocusRequester)
                                 else Modifier
@@ -1094,12 +1082,7 @@ fun ChannelSelectorDialog(
             TextButton(
                 onClick = onDismissRequest,
                 interactionSource = interactionSource,
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isActive)
             ) {
                 Text(text = stringResource(id = R.string.cancel))
             }

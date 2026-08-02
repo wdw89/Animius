@@ -35,7 +35,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -51,6 +50,7 @@ import com.lanlinju.animius.presentation.theme.SECONDARY_ALPHA
 import com.lanlinju.animius.presentation.theme.padding
 import com.lanlinju.animius.util.shareCrashLog
 import com.lanlinju.animius.util.toast
+import com.lanlinju.animius.util.focus.focusedOutlinedButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 
@@ -170,12 +170,7 @@ fun InfoScreen(
                         OutlinedButton(
                             modifier = Modifier.weight(1f).then(copyModifier),
                             onClick = onCopyClick,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (copyFocused) MaterialTheme.colorScheme.primary
-                                else Color.Transparent,
-                                contentColor = if (copyFocused) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.primary
-                            )
+                            colors = focusedOutlinedButtonColors(copyFocused)
                         ) {
                             Text(text = logText)
                         }
@@ -186,12 +181,7 @@ fun InfoScreen(
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth().then(rejectModifier),
                         onClick = onRejectClick,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (rejectFocused) MaterialTheme.colorScheme.primary
-                            else Color.Transparent,
-                            contentColor = if (rejectFocused) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.primary
-                        )
+                        colors = focusedOutlinedButtonColors(rejectFocused)
                     ) {
                         Text(text = rejectText)
                     }

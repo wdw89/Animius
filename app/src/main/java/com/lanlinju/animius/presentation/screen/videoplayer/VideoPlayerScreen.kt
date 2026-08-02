@@ -67,7 +67,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -143,6 +142,8 @@ import com.lanlinju.animius.util.KEY_AUTO_ORIENTATION_ENABLED
 import com.lanlinju.animius.util.KEY_DANMAKU_CONFIG_DATA
 import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isTabletDevice
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
+import com.lanlinju.animius.util.focus.focusedOutlinedButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.openExternalPlayer
@@ -424,11 +425,9 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
         OutlinedButton(
             onClick = onBackClick,
             modifier = Modifier.then(backModifier),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (backFocused) MaterialTheme.colorScheme.primary
-                else Color.Transparent,
-                contentColor = if (backFocused) MaterialTheme.colorScheme.onPrimary
-                else Color.White
+            colors = focusedOutlinedButtonColors(
+                backFocused,
+                unfocusedContentColor = Color.White
             )
         ) {
             Text(text = stringResource(id = R.string.back))
@@ -438,12 +437,7 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
         OutlinedButton(
             onClick = { viewModel.retry() },
             modifier = Modifier.focusRequester(retryFocusRequester).then(retryModifier),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (retryFocused) MaterialTheme.colorScheme.primary
-                else Color.Transparent,
-                contentColor = if (retryFocused) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.primary
-            )
+            colors = focusedOutlinedButtonColors(retryFocused)
         ) {
             Text(text = stringResource(id = R.string.retry))
         }
@@ -533,10 +527,7 @@ private fun OptionsContent(
     Row {
         IconButton(
             onClick = onForwardClick,
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = if (forwardFocused) MaterialTheme.colorScheme.primary
-                else Color.Transparent
-            ),
+            colors = focusedIconButtonColors(forwardFocused, Color.White),
             modifier = forwardModifier
                 .focusRequester(forwardFocusRequester)
         ) {
@@ -551,10 +542,7 @@ private fun OptionsContent(
         Box {
             IconButton(
                 onClick = { expanded = true },
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = if (moreFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent
-                ),
+                colors = focusedIconButtonColors(moreFocused, Color.White),
                 modifier = moreModifier
             ) {
                 Icon(
@@ -952,11 +940,9 @@ private fun ShowVideoMessage(text: String, onRetryClick: (() -> Unit)? = null) {
             val isActive = isFocused || isPressed
             Spacer(modifier = Modifier.padding(vertical = 8.dp))
             OutlinedButton(
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
+                colors = focusedOutlinedButtonColors(
+                    isActive,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                 ),
                 modifier = Modifier
                     .focusRequester(focusRequester),

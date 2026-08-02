@@ -28,14 +28,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
@@ -52,10 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -76,6 +72,8 @@ import com.lanlinju.animius.presentation.component.WarningMessage
 import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.isWideScreen
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,12 +141,7 @@ fun SearchScreen(
                         )
                     },
                     modifier = Modifier.then(focusModifier),
-                    colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                        else Color.Transparent,
-                        contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.primary
-                    )
+                    colors = focusedTextButtonColors(isFocused)
                 ) {
                     Text("去验证")
                 }
@@ -158,12 +151,7 @@ fun SearchScreen(
                 TextButton(
                     onClick = { viewModel.clearNeedCaptcha() },
                     modifier = Modifier.then(focusModifier),
-                    colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                        else Color.Transparent,
-                        contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.primary
-                    )
+                    colors = focusedTextButtonColors(isFocused)
                 ) {
                     Text("取消")
                 }
@@ -201,13 +189,11 @@ fun SearchScreen(
                     Text(stringResource(id = R.string.lbl_search_placeholder))
                 },
                 leadingIcon = {
-                    var backFocused by remember { mutableStateOf(false) }
+                    val (backFocused, backModifier) = rememberIsFocused()
                     IconButton(
                         onClick = onBackClick,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (backFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                        ),
-                        modifier = Modifier.onFocusChanged { backFocused = it.isFocused }
+                        colors = focusedIconButtonColors(backFocused),
+                        modifier = backModifier
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -218,13 +204,11 @@ fun SearchScreen(
                 },
                 trailingIcon = {
                     Row {
-                        var clearFocused by remember { mutableStateOf(false) }
+                        val (clearFocused, clearModifier) = rememberIsFocused()
                         IconButton(
                             onClick = viewModel::clearSearchQuery,
-                            colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = if (clearFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                            ),
-                            modifier = Modifier.onFocusChanged { clearFocused = it.isFocused }
+                            colors = focusedIconButtonColors(clearFocused),
+                            modifier = clearModifier
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Clear,
@@ -232,43 +216,16 @@ fun SearchScreen(
                                 tint = if (clearFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        var moreFocused by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(
-                                onClick = { menuExpanded = true },
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    containerColor = if (moreFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                                ),
-                                modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MoreVert,
-                                    contentDescription = stringResource(id = R.string.more),
-                                    tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                                )
+                        SourceModeMenu(
+                            expanded = menuExpanded,
+                            currentMode = viewModel.currentSourceMode,
+                            onExpandedChange = { menuExpanded = it },
+                            onModeSelected = { mode ->
+                                menuExpanded = false
+                                viewModel.currentSourceMode = mode
+                                viewModel.getSearchData(searchQuery, mode)
                             }
-
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false }
-                            ) {
-                                SourceMode.entries.forEach { mode ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = mode.name,
-                                                color = if (viewModel.currentSourceMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                            )
-                                        },
-                                        onClick = {
-                                            menuExpanded = false
-                                            viewModel.currentSourceMode = mode
-                                            viewModel.getSearchData(searchQuery, mode)
-                                        },
-                                    )
-                                }
-                            }
-                        }
+                        )
                     }
                 },
                 modifier = Modifier
@@ -298,7 +255,7 @@ fun SearchScreen(
                     }
             )
         } else {
-            var isNavFocused by remember { mutableStateOf(false) }
+            val (isNavFocused, navPillModifier) = rememberIsFocused()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -307,13 +264,11 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                var backFocused by remember { mutableStateOf(false) }
+                val (backFocused, backModifier) = rememberIsFocused()
                 IconButton(
                     onClick = onBackClick,
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = if (backFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                    ),
-                    modifier = Modifier.onFocusChanged { backFocused = it.isFocused }
+                    colors = focusedIconButtonColors(backFocused),
+                    modifier = backModifier
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -326,7 +281,7 @@ fun SearchScreen(
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(navFocusRequester)
-                        .onFocusChanged { isNavFocused = it.isFocused }
+                        .then(navPillModifier)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -364,13 +319,11 @@ fun SearchScreen(
                     )
                 }
 
-                var clearFocused by remember { mutableStateOf(false) }
+                val (clearFocused, clearModifier) = rememberIsFocused()
                 IconButton(
                     onClick = viewModel::clearSearchQuery,
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = if (clearFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                    ),
-                    modifier = Modifier.onFocusChanged { clearFocused = it.isFocused }
+                    colors = focusedIconButtonColors(clearFocused),
+                    modifier = clearModifier
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Clear,
@@ -379,43 +332,16 @@ fun SearchScreen(
                     )
                 }
 
-                var moreFocused by remember { mutableStateOf(false) }
-                Box {
-                    IconButton(
-                        onClick = { menuExpanded = true },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (moreFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                        ),
-                        modifier = Modifier.onFocusChanged { moreFocused = it.isFocused }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.MoreVert,
-                            contentDescription = stringResource(id = R.string.more),
-                            tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        )
+                SourceModeMenu(
+                    expanded = menuExpanded,
+                    currentMode = viewModel.currentSourceMode,
+                    onExpandedChange = { menuExpanded = it },
+                    onModeSelected = { mode ->
+                        menuExpanded = false
+                        viewModel.currentSourceMode = mode
+                        viewModel.getSearchData(searchQuery, mode)
                     }
-
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
-                        SourceMode.entries.forEach { mode ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = mode.name,
-                                        color = if (viewModel.currentSourceMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    viewModel.currentSourceMode = mode
-                                    viewModel.getSearchData(searchQuery, mode)
-                                },
-                            )
-                        }
-                    }
-                }
+                )
             }
         }
 
@@ -481,6 +407,51 @@ fun SearchScreen(
                 )
             }
         }
+        }
+    }
+}
+
+/**
+ * "More" button + source-mode dropdown, shared by both search-bar states.
+ */
+@Composable
+private fun SourceModeMenu(
+    expanded: Boolean,
+    currentMode: SourceMode,
+    onExpandedChange: (Boolean) -> Unit,
+    onModeSelected: (SourceMode) -> Unit,
+) {
+    val (moreFocused, moreModifier) = rememberIsFocused()
+    Box {
+        IconButton(
+            onClick = { onExpandedChange(true) },
+            colors = focusedIconButtonColors(moreFocused),
+            modifier = moreModifier
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = stringResource(id = R.string.more),
+                tint = if (moreFocused) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            SourceMode.entries.forEach { mode ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = mode.name,
+                            color = if (currentMode == mode) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    onClick = { onModeSelected(mode) },
+                )
+            }
         }
     }
 }

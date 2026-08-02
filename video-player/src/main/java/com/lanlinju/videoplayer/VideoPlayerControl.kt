@@ -218,7 +218,6 @@ private fun BottomControlBar(
     playPauseFocusRequester: FocusRequester,
     episodeFocusRequester: FocusRequester,
 ) {
-    val isTv = LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
     val timestamp =
         remember(
             state.videoDurationMs.value,

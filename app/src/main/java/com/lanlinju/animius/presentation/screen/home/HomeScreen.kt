@@ -58,7 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -92,6 +91,7 @@ import com.lanlinju.animius.presentation.screen.week.SourceSwitchDialog
 import com.lanlinju.animius.util.bannerParallax
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 import com.lanlinju.animius.R as Res
@@ -157,8 +157,7 @@ fun HomeScreen(
                                     it.detailUrl,
                                     SourceHolder.currentSourceMode
                                 )
-                            },
-                            onRefresh = { homeViewModel.refresh() }
+                            }
                         )
                     }
                 }
@@ -175,8 +174,6 @@ private fun HomeContent(
     homeBackgroundColor: Color,
     onSwitchGridLayout: (Boolean) -> Unit,
     onItemClick: (Anime) -> Unit,
-    onSourceChanged: () -> Unit = {},
-    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -193,9 +190,7 @@ private fun HomeContent(
             if (isWideScreen) {
                 HomeTile(
                     useGridLayout = useGridLayout,
-                    onSwitchGridLayout = onSwitchGridLayout,
-                    onSourceChanged = onSourceChanged,
-                    onRefresh = onRefresh
+                    onSwitchGridLayout = onSwitchGridLayout
                 )
             }
 
@@ -283,12 +278,12 @@ private fun Tab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    val (isFocused, focusModifier) = rememberIsFocused()
     Surface(
         onClick = onClick,
         modifier = modifier
             .padding(8.dp)
-            .onFocusChanged { isFocused = it.isFocused },
+            .then(focusModifier),
         shape = RoundedCornerShape(20.dp),
         color = when {
             isFocused -> MaterialTheme.colorScheme.primary
@@ -412,8 +407,6 @@ private fun HomeTile(
     useGridLayout: Boolean,
     onSwitchGridLayout: (Boolean) -> Unit,
     onClick: () -> Unit = {},
-    onSourceChanged: () -> Unit = {},
-    onRefresh: () -> Unit = {},
 ) {
     val isWideScreen = isWideScreen(LocalContext.current)
     var showSourceSwitchDialog by remember { mutableStateOf(false) }
@@ -480,7 +473,6 @@ private fun HomeTile(
     if (showSourceSwitchDialog) {
         SourceSwitchDialog(
             onDismissRequest = { showSourceSwitchDialog = false },
-            onRefresh = onRefresh,
             onSourceChanged = { mode ->
                 currentSourceName = mode.name
                 SourceHolder.isSourceChanged.value++
@@ -560,16 +552,13 @@ private fun LayoutTypeSelector(
         ) {
             repeat(2) { index ->
                 val selectedIndex = if (!checked) 0 else 1
-                var isFocused by remember { mutableStateOf(false) }
+                val (isFocused, focusModifier) = rememberIsFocused()
                 IconButton(
                     onClick = { if (selectedIndex != index) onCheckedChange?.invoke(!checked) },
                     modifier = Modifier
                         .requiredWidth(dimensionResource(Res.dimen.media_type_choice_size))
-                        .onFocusChanged { isFocused = it.isFocused },
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                        else Color.Transparent
-                    )
+                        .then(focusModifier),
+                    colors = focusedIconButtonColors(isFocused)
                 ) {
                     Icon(
                         imageVector = if (index == 0) Icons.Rounded.PlayArrow else ImageVector.vectorResource(

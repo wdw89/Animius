@@ -2,6 +2,8 @@ package com.lanlinju.animius.presentation.component
 
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,11 +68,14 @@ fun <T> MediaSmallRow(
  * @param image A URL of the image to be shown in the card that this component is.
  * @param label A label for the [image], if this is `null`, the [label] is not shown.
  * @param onClick Action to happen when the card is clicked.
+ * @param onLongClick Action to happen when the card is long-pressed.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MediaSmall(
     image: String?,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     label: String? = null,
@@ -79,8 +84,18 @@ fun MediaSmall(
     val cardShape = RoundedCornerShape(dimensionResource(Res.dimen.media_card_corner_radius))
 
     Card(
-        onClick = onClick,
-        enabled = enabled,
+        modifier = modifier
+            .focusBorder(
+                shape = cardShape,
+                width = 3.dp,
+                focusedColor = MaterialTheme.colorScheme.primary,
+            )
+            .clip(cardShape)
+            .combinedClickable(
+                enabled = enabled,
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 0.dp,
             pressedElevation = 0.dp,
@@ -89,12 +104,6 @@ fun MediaSmall(
             draggedElevation = 0.dp,
             disabledElevation = 0.dp,
         ),
-        modifier = modifier
-            .focusBorder(
-                shape = cardShape,
-                width = 3.dp,
-                focusedColor = MaterialTheme.colorScheme.primary,
-            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),

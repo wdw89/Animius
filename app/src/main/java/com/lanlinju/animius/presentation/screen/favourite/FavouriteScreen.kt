@@ -2,7 +2,6 @@ package com.lanlinju.animius.presentation.screen.favourite
 
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -19,17 +18,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
@@ -37,13 +33,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,24 +44,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Delete
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lanlinju.animius.R
+import com.lanlinju.animius.presentation.component.DeleteOverlay
 import com.lanlinju.animius.presentation.component.LoadingIndicator
 import com.lanlinju.animius.presentation.component.MediaSmall
 import com.lanlinju.animius.presentation.component.SourceBadge
 import com.lanlinju.animius.presentation.component.StateHandler
 import com.lanlinju.animius.util.SourceMode
+import com.lanlinju.animius.util.focus.FocusedDropdownMenuItem
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.isWideScreen
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,10 +89,9 @@ fun FavouriteScreen(
                         TextButton(
                             onClick = { isDeleteMode = !isDeleteMode },
                             modifier = deleteModifier,
-                            colors = ButtonDefaults.textButtonColors(
-                                containerColor = if (deleteFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                contentColor = if (deleteFocused) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurface
+                            colors = focusedTextButtonColors(
+                                deleteFocused,
+                                unfocusedContentColor = MaterialTheme.colorScheme.onSurface
                             )
                         ) {
                             Text(
@@ -149,20 +136,7 @@ fun FavouriteScreen(
                     items(favouriteList) { anime ->
 
                         var expanded by remember { mutableStateOf(false) }
-                        var longPressConsumed by remember { mutableStateOf(false) }
-                        var touchPressed by remember { mutableStateOf(false) }
                         val haptic = LocalHapticFeedback.current
-                        val longPressTimeout = LocalViewConfiguration.current.longPressTimeoutMillis
-
-                        LaunchedEffect(touchPressed) {
-                            if (touchPressed) {
-                                delay(longPressTimeout)
-                                longPressConsumed = true
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                expanded = true
-                                touchPressed = false
-                            }
-                        }
 
                         Box {
                             SourceBadge(
@@ -176,63 +150,33 @@ fun FavouriteScreen(
                                     onClick = {
                                         if (isDeleteMode) {
                                             favouriteViewModel.removeFavourite(anime.detailUrl)
-                                        } else if (!longPressConsumed) {
+                                        } else {
                                             onNavigateToAnimeDetail(anime.detailUrl, anime.sourceMode)
                                         }
-                                        longPressConsumed = false
                                     },
-                                    modifier = Modifier
-                                        .onPreviewKeyEvent { event ->
-                                            when {
-                                                event.key == Key.Menu && event.type == KeyEventType.KeyDown -> {
-                                                    if (expanded) expanded = false else expanded = true
-                                                    true
-                                                }
-                                                else -> false
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        expanded = true
+                                    },
+                                    modifier = Modifier.onPreviewKeyEvent { event ->
+                                        when {
+                                            event.key == Key.Menu && event.type == KeyEventType.KeyDown -> {
+                                                if (expanded) expanded = false else expanded = true
+                                                true
                                             }
+                                            else -> false
                                         }
-                                        .pointerInput(Unit) {
-                                            awaitEachGesture {
-                                                awaitFirstDown(requireUnconsumed = false)
-                                                touchPressed = true
-                                                while (touchPressed) {
-                                                    val event = awaitPointerEvent()
-                                                    if (event.changes.all { !it.pressed }) {
-                                                        touchPressed = false
-                                                    }
-                                                }
-                                            }
-                                        }
+                                    }
                                 )
                             }
 
                             // Delete mode: trash icon overlay centered on image
-                            AnimatedVisibility(
+                            DeleteOverlay(
                                 visible = isDeleteMode,
-                                enter = fadeIn(),
-                                exit = fadeOut(),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(0.7f),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Delete,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                            }
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(0.7f)
+                            )
 
                             DropdownMenu(
                                 expanded = expanded,
@@ -240,24 +184,12 @@ fun FavouriteScreen(
                                 offset = DpOffset(x = 40.dp, y = 0.dp),
                             ) {
 
-                                val (focused, focusModifier) = rememberIsFocused()
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = stringResource(id = R.string.delete),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = if (focused) MaterialTheme.colorScheme.onPrimary
-                                            else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
+                                FocusedDropdownMenuItem(
+                                    text = stringResource(id = R.string.delete),
                                     onClick = {
                                         expanded = false
                                         favouriteViewModel.removeFavourite(anime.detailUrl)
-                                    },
-                                    modifier = focusModifier.then(
-                                        if (focused) Modifier.background(MaterialTheme.colorScheme.primary)
-                                        else Modifier
-                                    )
+                                    }
                                 )
                             }
                         }

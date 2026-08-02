@@ -44,12 +44,10 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -73,7 +71,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -111,6 +108,8 @@ import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.rememberPreference
 import com.lanlinju.animius.util.focus.focusBorder
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -153,13 +152,13 @@ fun WeekScreen(
         Column {
             TopAppBar(
                 title = {
-                    var titleFocused by remember { mutableStateOf(false) }
+                    val (titleFocused, titleModifier) = rememberIsFocused()
                     Surface(
                         onClick = { showSourceSwitchDialog = true },
                         shape = RoundedCornerShape(20.dp),
                         color = if (titleFocused) MaterialTheme.colorScheme.primary
                         else Color.Transparent,
-                        modifier = Modifier.onFocusChanged { titleFocused = it.isFocused }
+                        modifier = titleModifier
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
                             Text(
@@ -197,7 +196,7 @@ fun WeekScreen(
                 selectedTabIndex = pagerState.currentPage,
             ) {
                 TABS.forEachIndexed { index, title ->
-                    var tabFocused by remember { mutableStateOf(false) }
+                    val (tabFocused, tabModifier) = rememberIsFocused()
                     Tab(
                         text = {
                             Text(
@@ -212,12 +211,10 @@ fun WeekScreen(
                         else MaterialTheme.colorScheme.primary,
                         unselectedContentColor = if (tabFocused) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .onFocusChanged { tabFocused = it.isFocused }
-                            .then(
-                                if (tabFocused) Modifier.background(MaterialTheme.colorScheme.primary)
-                                else Modifier
-                            )
+                        modifier = tabModifier.then(
+                            if (tabFocused) Modifier.background(MaterialTheme.colorScheme.primary)
+                            else Modifier
+                        )
                     )
                 }
             }
@@ -401,10 +398,7 @@ private fun AppBarAction(
         val (moreFocused, moreModifier) = rememberIsFocused()
         IconButton(
             onClick = { menuExpanded = true },
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = if (moreFocused) MaterialTheme.colorScheme.primary
-                else Color.Transparent
-            ),
+            colors = focusedIconButtonColors(moreFocused),
             modifier = moreModifier
         ) {
             Icon(
@@ -438,10 +432,7 @@ private fun AppBarNavigation(
     val (historyFocused, historyModifier) = rememberIsFocused()
     IconButton(
         onClick = onNavigateToHistory,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (historyFocused) MaterialTheme.colorScheme.primary
-            else Color.Transparent
-        ),
+        colors = focusedIconButtonColors(historyFocused),
         modifier = historyModifier
     ) {
         Icon(
@@ -455,10 +446,7 @@ private fun AppBarNavigation(
     val (searchFocused, searchModifier) = rememberIsFocused()
     IconButton(
         onClick = onNavigateToSearch,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (searchFocused) MaterialTheme.colorScheme.primary
-            else Color.Transparent
-        ),
+        colors = focusedIconButtonColors(searchFocused),
         modifier = searchModifier
     ) {
         Icon(
@@ -472,10 +460,7 @@ private fun AppBarNavigation(
     val (downloadFocused, downloadModifier) = rememberIsFocused()
     IconButton(
         onClick = onNavigateToDownload,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (downloadFocused) MaterialTheme.colorScheme.primary
-            else Color.Transparent
-        ),
+        colors = focusedIconButtonColors(downloadFocused),
         modifier = downloadModifier
     ) {
         Icon(
@@ -613,7 +598,6 @@ fun Dialogs(
     if (showSourceSwitchDialog) {
         SourceSwitchDialog(
             onDismissRequest = onDismissSourceSwitchDialog,
-            onRefresh = onRefresh,
             onSourceChanged = onSourceChanged
         )
     }
@@ -674,12 +658,7 @@ fun VersionUpdateDialog(
             TextButton(
                 onClick = { onDownloadUpdate(lifecycleOwner) },
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isFocused)
             ) {
                 Text(text = stringResource(id = R.string.download_software))
             }
@@ -689,12 +668,7 @@ fun VersionUpdateDialog(
             TextButton(
                 onClick = onDismissUpdateDialog,
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isFocused)
             ) {
                 Text(text = stringResource(id = R.string.cancel))
             }
@@ -727,12 +701,7 @@ private fun LoadingIndicationDialog(
             TextButton(
                 onClick = onDismissRequest,
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isFocused)
             ) {
                 Text(text = stringResource(id = R.string.cancel))
             }
@@ -743,7 +712,6 @@ private fun LoadingIndicationDialog(
 @Composable
 fun SourceSwitchDialog(
     onDismissRequest: () -> Unit,
-    onRefresh: () -> Unit,
     onSourceChanged: (SourceMode) -> Unit = {}
 ) {
     var currentSourceMode by rememberPreference(KEY_SOURCE_MODE, DEFAULT_ANIME_SOURCE)
@@ -794,7 +762,6 @@ fun SourceSwitchDialog(
                                     SourceHolder.switchSource(mode)
                                     onSourceChanged(mode)
                                     onDismissRequest()
-                                    onRefresh()
                                 },
                                 role = Role.RadioButton
                             )
@@ -822,12 +789,7 @@ fun SourceSwitchDialog(
             TextButton(
                 onClick = onDismissRequest,
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isFocused)
             ) {
                 Text(text = stringResource(id = R.string.cancel))
             }
@@ -879,12 +841,7 @@ private fun SettingsDialog(
                     modifier = Modifier.align(Alignment.End),
                     onClick = onDismissRequest,
                     interactionSource = interactionSource,
-                    colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
-                        else Color.Transparent,
-                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.primary
-                    )
+                    colors = focusedTextButtonColors(isActive)
                 ) {
                     Text(stringResource(R.string.close))
                 }
@@ -899,12 +856,12 @@ private fun SettingsItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    val (isFocused, focusModifier) = rememberIsFocused()
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(dimensionResource(id = R.dimen.radio_button_height))
-            .onFocusChanged { isFocused = it.isFocused }
+            .then(focusModifier)
             .clickable { onCheckedChange(!checked) },
         colors = ListItemDefaults.colors(
             containerColor = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
@@ -1005,12 +962,7 @@ private fun DomainChangeDialog(
                     }
                 },
                 interactionSource = interactionSource,
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isActive)
             ) {
                 Text(text = stringResource(id = R.string.confirm))
             }
@@ -1023,12 +975,7 @@ private fun DomainChangeDialog(
             TextButton(
                 onClick = { onDismissRequest(false) },
                 interactionSource = interactionSource,
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isActive) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isActive)
             ) {
                 Text(text = stringResource(id = R.string.cancel))
             }

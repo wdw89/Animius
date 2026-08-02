@@ -32,13 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
 import com.lanlinju.animius.presentation.theme.AnimeTheme
+import com.lanlinju.animius.util.focus.rememberIsFocused
 
 class CaptchaWebViewActivity : ComponentActivity() {
 
@@ -113,7 +113,7 @@ private fun CaptchaWebViewContent(
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     val buttonFocusRequester = remember { FocusRequester() }
-    var isButtonFocused by remember { mutableStateOf(false) }
+    val (isButtonFocused, buttonFocusModifier) = rememberIsFocused()
     // 用 View 级别的焦点监听,Compose 的 onFocusChanged 无法正确捕获 WebView 内部焦点
     var isWebViewFocused by remember { mutableStateOf(true) }
     val context = LocalContext.current
@@ -198,7 +198,7 @@ private fun CaptchaWebViewContent(
                 .fillMaxWidth()
                 .padding(16.dp)
                 .focusRequester(buttonFocusRequester)
-                .onFocusChanged { isButtonFocused = it.isFocused }
+                .then(buttonFocusModifier)
                 .border(
                     width = if (isButtonFocused) 3.dp else 0.dp,
                     color = if (isButtonFocused) MaterialTheme.colorScheme.primary else Color.Transparent,

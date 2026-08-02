@@ -29,9 +29,6 @@ import androidx.compose.ui.input.key.type
 fun Modifier.handleDPadKeyEvents(
     onUp: (() -> Unit)? = null,
     onDown: (() -> Unit)? = null,
-    onLeft: (() -> Unit)? = null,
-    onRight: (() -> Unit)? = null,
-    onEnter: (() -> Unit)? = null,
 ): Modifier = onPreviewKeyEvent { keyEvent: KeyEvent ->
     if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
@@ -44,26 +41,6 @@ fun Modifier.handleDPadKeyEvents(
         Key.DirectionDown -> {
             onDown?.invoke()
             onDown != null
-        }
-
-        Key.DirectionLeft -> {
-            onLeft?.invoke()
-            onLeft != null
-        }
-
-        Key.DirectionRight -> {
-            onRight?.invoke()
-            onRight != null
-        }
-
-        Key.DirectionCenter -> {
-            onEnter?.invoke()
-            onEnter != null
-        }
-
-        Key.Enter -> {
-            onEnter?.invoke()
-            onEnter != null
         }
 
         else -> false

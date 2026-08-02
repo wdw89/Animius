@@ -12,19 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -44,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +46,7 @@ import coil.request.ImageRequest
 import com.lanlinju.animius.R
 import com.lanlinju.animius.domain.model.Episode
 import com.lanlinju.animius.presentation.component.BackTopAppBar
+import com.lanlinju.animius.presentation.component.DeleteOverlay
 import com.lanlinju.animius.presentation.component.LoadingIndicator
 import com.lanlinju.animius.presentation.component.PopupMenuListItem
 import com.lanlinju.animius.presentation.component.StateHandler
@@ -64,13 +54,13 @@ import com.lanlinju.animius.presentation.navigation.PlayerParameters
 import com.lanlinju.animius.util.CROSSFADE_DURATION
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.VIDEO_ASPECT_RATIO
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.toast
 import com.lanlinju.download.Progress
 import com.lanlinju.download.core.DownloadTask
 import com.lanlinju.download.download
 import com.lanlinju.download.utils.formatSize
-import com.lanlinju.animius.util.focus.rememberIsFocused
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -111,20 +101,18 @@ fun DownloadDetailScreen(
                     TextButton(
                         onClick = { onNavigateToAnimeDetail(detailUrlState.value, sourceModeState.value) },
                         modifier = detailModifier,
-                        colors = ButtonDefaults.textButtonColors(
-                            containerColor = if (detailFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            contentColor = if (detailFocused) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurface
+                        colors = focusedTextButtonColors(
+                            detailFocused,
+                            unfocusedContentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) { Text(stringResource(id = R.string.anime_detail)) }
                     val (deleteFocused, deleteModifier) = rememberIsFocused()
                     TextButton(
                         onClick = { isDeleteMode = !isDeleteMode },
                         modifier = deleteModifier,
-                        colors = ButtonDefaults.textButtonColors(
-                            containerColor = if (deleteFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            contentColor = if (deleteFocused) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurface
+                        colors = focusedTextButtonColors(
+                            deleteFocused,
+                            unfocusedContentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) { Text(if (isDeleteMode) stringResource(R.string.cancel) else stringResource(R.string.delete)) }
                 }
@@ -169,36 +157,16 @@ fun DownloadDetailScreen(
                                         imgUrl = downloadDetail.imgUrl,
                                         state = state
                                     )
-                                    AnimatedVisibility(
+                                    DeleteOverlay(
                                         visible = isDeleteMode,
-                                        enter = fadeIn(),
-                                        exit = fadeOut(),
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .padding(
-                                                    horizontal = dimensionResource(id = R.dimen.small_padding),
-                                                    vertical = dimensionResource(id = R.dimen.small_padding)
-                                                )
-                                                .height(dimensionResource(id = R.dimen.image_cover_height))
-                                                .aspectRatio(VIDEO_ASPECT_RATIO),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(48.dp)
-                                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.Delete,
-                                                    contentDescription = null,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                        }
-                                    }
+                                        modifier = Modifier
+                                            .padding(
+                                                horizontal = dimensionResource(id = R.dimen.small_padding),
+                                                vertical = dimensionResource(id = R.dimen.small_padding)
+                                            )
+                                            .height(dimensionResource(id = R.dimen.image_cover_height))
+                                            .aspectRatio(VIDEO_ASPECT_RATIO)
+                                    )
                                 }
                             },
                             menuText = stringResource(id = R.string.delete),

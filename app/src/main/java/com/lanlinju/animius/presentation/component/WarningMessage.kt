@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -17,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.lanlinju.animius.R
+import com.lanlinju.animius.util.focus.focusedOutlinedButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @Composable
@@ -51,11 +51,9 @@ fun WarningMessage(
             OutlinedButton(
                 onClick = onRetryClick,
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surface,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
+                colors = focusedOutlinedButtonColors(
+                    isFocused,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 Text(text = stringResource(id = R.string.lbl_retry))

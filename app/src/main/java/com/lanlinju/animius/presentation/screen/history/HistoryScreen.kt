@@ -20,7 +20,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
+
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -54,7 +53,8 @@ import com.lanlinju.animius.util.CROSSFADE_DURATION
 import com.lanlinju.animius.util.LOW_CONTENT_ALPHA
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.VIDEO_ASPECT_RATIO
-import com.lanlinju.animius.util.focus.rememberIsFocused
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @Composable
@@ -188,10 +188,7 @@ fun DeleteHistoryButton(
     val (isFocused, focusModifier) = rememberIsFocused()
     IconButton(
         onClick = onClick,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-            else Color.Transparent
-        ),
+        colors = focusedIconButtonColors(isFocused),
         modifier = focusModifier
     ) {
         Icon(
@@ -221,12 +218,7 @@ fun DeleteAllHistoriesDialog(
                     onDeleteAllHistories()
                 },
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isFocused)
             ) {
                 Text(stringResource(id = R.string.confirm))
             }
@@ -236,12 +228,7 @@ fun DeleteAllHistoriesDialog(
             TextButton(
                 onClick = onDismissRequest,
                 modifier = Modifier.then(focusModifier),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                    else Color.Transparent,
-                    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.primary
-                )
+                colors = focusedTextButtonColors(isFocused)
             ) {
                 Text(stringResource(id = R.string.cancel))
             }

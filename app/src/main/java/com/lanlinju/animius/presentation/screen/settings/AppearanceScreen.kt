@@ -57,7 +57,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -73,6 +72,7 @@ import com.lanlinju.animius.util.KEY_DYNAMIC_IMAGE_COLOR
 import com.lanlinju.animius.util.SettingsPreferences
 import com.lanlinju.animius.util.catpucchinLatte
 import com.lanlinju.animius.util.rememberPreference
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
 import com.lanlinju.animius.util.focus.handleDPadKeyEvents
 import com.lanlinju.animius.util.focus.rememberIsFocused
 
@@ -93,10 +93,7 @@ fun AppearanceScreen(
                     val (backFocused, backFocusModifier) = rememberIsFocused()
                     IconButton(
                         onClick = onBackClick,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (backFocused) MaterialTheme.colorScheme.primary
-                            else Color.Transparent
-                        ),
+                        colors = focusedIconButtonColors(backFocused),
                         modifier = backFocusModifier
                     ) {
                         Icon(
@@ -221,6 +218,7 @@ private fun ThemeModeSettings(
         SingleChoiceSegmentedButtonRow {
             options.forEachIndexed { index, label ->
                 val (isFocused, focusModifier) = rememberIsFocused()
+                val defaultColors = SegmentedButtonDefaults.colors()
                 SegmentedButton(
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
@@ -234,13 +232,13 @@ private fun ThemeModeSettings(
                     selected = index == selectedIndex,
                     colors = SegmentedButtonDefaults.colors(
                         activeContainerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                        else SegmentedButtonDefaults.colors().activeContainerColor,
+                        else defaultColors.activeContainerColor,
                         activeContentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                        else SegmentedButtonDefaults.colors().activeContentColor,
+                        else defaultColors.activeContentColor,
                         inactiveContainerColor = if (isFocused) MaterialTheme.colorScheme.primary
-                        else SegmentedButtonDefaults.colors().inactiveContainerColor,
+                        else defaultColors.inactiveContainerColor,
                         inactiveContentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary
-                        else SegmentedButtonDefaults.colors().inactiveContentColor
+                        else defaultColors.inactiveContentColor
                     ),
                     modifier = focusModifier
                         .then(

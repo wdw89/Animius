@@ -17,7 +17,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -33,7 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -61,7 +60,7 @@ import com.lanlinju.animius.presentation.screen.settings.DanmakuConfigData.Compa
 import com.lanlinju.animius.util.KEY_DANMAKU_CONFIG_DATA
 import com.lanlinju.animius.util.KEY_DANMAKU_ENABLED
 import com.lanlinju.animius.util.rememberPreference
-import com.lanlinju.animius.util.focus.rememberIsFocused
+import com.lanlinju.animius.util.focus.focusedIconButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.serialization.Serializable
 import java.util.UUID
@@ -82,10 +81,7 @@ fun DanmakuSettingsScreen(onBackClick: () -> Unit = {}) {
                     val (backFocused, backModifier) = rememberIsFocused()
                     IconButton(
                         onClick = onBackClick,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (backFocused) MaterialTheme.colorScheme.primary
-                            else Color.Transparent
-                        ),
+                        colors = focusedIconButtonColors(backFocused),
                         modifier = backModifier
                     ) {
                         Icon(
@@ -371,11 +367,11 @@ fun SliderItem(
     titleStyle: TextStyle = MaterialTheme.typography.titleMedium,
     dpadStep: Float = Float.NaN,
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    val (isFocused, focusModifier) = rememberIsFocused()
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
-            .onFocusChanged { isFocused = it.isFocused },
+            .then(focusModifier),
         colors = ListItemDefaults.colors(
             containerColor = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
             else Color.Transparent
