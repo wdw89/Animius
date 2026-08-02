@@ -1137,16 +1137,14 @@ private fun EpisodeSideSheet(
     // 稳定焦点请求器：打开侧栏或切换线路后主动夺焦
     val selectedFocusRequester = remember { FocusRequester() }
     val channelListState = rememberLazyListState()
-    // 左/右快速切线路后要聚焦的集数 index（null = 不主动聚焦集数）
-    var pendingFocusIndex by remember { mutableStateOf<Int?>(null) }
-    // UP 键从第一集跳转到播放线路 tab 的待聚焦目标（null = 无）
+    // 待聚焦的集数 index：首帧为 focusIndex（打开即聚焦播放集），左/右切线路时设为同 index
+    var pendingFocusIndex by remember { mutableStateOf<Int?>(focusIndex) }
+    // UP 键从第一集跳转到当前线路 tab 的待聚焦标记（null = 无）
     var pendingTabFocusIndex by remember { mutableStateOf<Int?>(null) }
     // 当前聚焦的集数 index（左/右切线路后保持同 index）
     var focusedEpisodeIndex by remember { mutableIntStateOf(focusIndex) }
-    // 首次打开侧栏时聚焦播放中的集数
-    var hasShownOnce by remember { mutableStateOf(false) }
-    // 每个线路 tab 的焦点请求器（用于从集数列表 UP 到当前线路）
-    val channelFocusRequesters = remember { List(channels.size) { FocusRequester() } }
+    // 当前线路 tab 的焦点请求器（UP 键从集数列表聚焦到它）
+    val channelFocusRequester = remember { FocusRequester() }
 
     // 正在播放的集数在当前线路列表中的 index（不在当前线路则为 -1）
     val playingIndex = episodes.indexOfFirst { it.url == playingEpisodeUrl }
@@ -1185,7 +1183,11 @@ private fun EpisodeSideSheet(
                             colors = channelButtonColors(isActive, selected),
                             // 焦点在 tab 上时：左右切换 tab 并同步切换线路，焦点保持在 tab 上
                             modifier = Modifier
-                                .focusRequester(channelFocusRequesters[index])
+                                .then(
+                                    if (index == channelIndex) {
+                                        Modifier.focusRequester(channelFocusRequester)
+                                    } else Modifier
+                                )
                                 .onFocusChanged {
                                     if (it.isFocused && index != channelIndex) onChannelClick(index)
                                 },
@@ -1316,23 +1318,21 @@ private fun EpisodeSideSheet(
         }
     }
 
-    // 打开侧栏（首次）聚焦播放中的集数；左/右切线路聚焦同 index；tab 切线路不夺焦
+    // 打开侧栏聚焦播放中的集数；左/右切线路聚焦同 index；tab 切线路时 pending 已为 null 不夺焦
     LaunchedEffect(channelIndex) {
         delay(200)
-        val target = pendingFocusIndex ?: if (!hasShownOnce) focusIndex else null
-        if (target != null) {
+        if (pendingFocusIndex != null) {
             runCatching { selectedFocusRequester.requestFocus() }
         }
         pendingFocusIndex = null
-        hasShownOnce = true
     }
 
-    // UP 键从第一集跳转当前显示线路 tab：先滚动到可见，再延迟夺焦
+    // UP 键从第一集跳转当前线路 tab：先滚动到可见，再延迟夺焦
     LaunchedEffect(pendingTabFocusIndex) {
-        pendingTabFocusIndex?.let { target ->
-            channelListState.animateScrollToItem(target)
+        if (pendingTabFocusIndex != null) {
+            channelListState.animateScrollToItem(channelIndex.coerceAtLeast(0))
             delay(100)
-            runCatching { channelFocusRequesters[target].requestFocus() }
+            runCatching { channelFocusRequester.requestFocus() }
             pendingTabFocusIndex = null
         }
     }
