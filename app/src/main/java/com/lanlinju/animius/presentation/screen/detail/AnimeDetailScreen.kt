@@ -80,6 +80,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -1040,6 +1041,9 @@ fun ChannelSelectorDialog(
     onChannelClick: (index: Int, episodes: List<Episode>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val lazyListState = rememberLazyListState()
+    val selectedFocusRequester = remember { FocusRequester() }
+
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = {
@@ -1049,6 +1053,7 @@ fun ChannelSelectorDialog(
             // 显示所有剧集线路
             LazyColumn(
                 modifier = modifier,
+                state = lazyListState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(channels.size) { index ->
@@ -1068,6 +1073,10 @@ fun ChannelSelectorDialog(
                                 else MaterialTheme.colorScheme.surfaceVariant
                             )
                             .onFocusChanged { itemFocused = it.isFocused }
+                            .then(
+                                if (index == channelIndex) Modifier.focusRequester(selectedFocusRequester)
+                                else Modifier
+                            )
                             .clickable {
                                 onChannelClick(index, channels[index]!!)
                             }
@@ -1096,4 +1105,16 @@ fun ChannelSelectorDialog(
             }
         }
     )
+
+    // 打开弹窗时聚焦到当前线路，而不是“取消”按钮
+    LaunchedEffect(Unit) {
+        if (channels.isNotEmpty() && channelIndex in channels.keys) {
+            runCatching {
+                // 先滚动到当前线路，确保其已组合（线路较多时可能不在可视区内）
+                lazyListState.scrollToItem(channelIndex)
+                withFrameNanos { }
+                selectedFocusRequester.requestFocus()
+            }
+        }
+    }
 }
