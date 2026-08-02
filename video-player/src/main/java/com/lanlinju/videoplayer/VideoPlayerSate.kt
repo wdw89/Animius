@@ -231,6 +231,9 @@ class VideoPlayerStateImpl(
 
     override fun setLoading(loading: Boolean) {
         isLoading.value = loading
+        // 新的加载开始（选集/切线路/下一集/连播）时清除播放错误，
+        // 否则加载圈会被 isError 阻塞，失败图标残留
+        if (loading) isError.value = false
     }
 
     private var pollVideoPositionJob: Job? = null

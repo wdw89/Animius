@@ -764,6 +764,8 @@ private fun handleEpisodeSelection(
                 title = title,
                 episodeIndex = index,
                 episodes = episodes.conditionalReverse(reverseList),
+                channels = channels.mapValues { it.value.conditionalReverse(reverseList) },
+                channelIndex = channelIndex,
                 mode = viewModel.mode
             ).let(onNavigateToVideoPlay)
         }

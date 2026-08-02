@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -340,7 +341,7 @@ private fun PlaybackControl(
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             AdaptiveTextButton(
-                text = "选集",
+                text = "线路/选集",
                 onClick = onEpisodeClick,
                 modifier = Modifier.focusRequester(episodeFocusRequester)
             )
@@ -420,15 +421,24 @@ fun AdaptiveTextButton(
     fontWeight: FontWeight? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    AdaptiveIconButton(
-        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
-        onClick = onClick,
+    Box(
+        modifier = modifier
+            .defaultMinSize(minWidth = 42.dp, minHeight = 42.dp)
+            .clip(CircleShape)
+            .onFocusChanged { isFocused = it.isFocused }
+            .background(if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             color = if (isFocused) MaterialTheme.colorScheme.onPrimary else color,
             style = style,
             fontWeight = fontWeight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            // 4dp 水平内边距让文字不贴边；固定尺寸(42dp)按钮下内容仍放得下(34dp ≥ 两字宽)
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
     }
 }

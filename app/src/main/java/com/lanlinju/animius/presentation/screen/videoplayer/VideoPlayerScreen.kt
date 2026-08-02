@@ -48,8 +48,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -76,6 +78,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,6 +102,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -223,12 +227,13 @@ fun VideoPlayScreen(
                                 playerState.isControlUiVisible.value -> { playerState.hideControlUi(); return@onKeyEvent true }
                             }
                         }
-                        // Hidden-UI shortcuts: intercept when controls are hidden
-                        // Also skip when any side sheet is open — let it handle its own keys
-                        if (playerState.isControlUiVisible.value ||
-                            playerState.isEpisodeUiVisible.value ||
+                        // 侧栏打开时交给侧栏自己处理按键
+                        if (playerState.isEpisodeUiVisible.value ||
                             playerState.isSpeedUiVisible.value ||
                             playerState.isResizeUiVisible.value) return@onKeyEvent false
+                        // 控制 UI 可见：交给默认焦点导航（Slider 可聚焦，按钮间正常左右导航）
+                        if (playerState.isControlUiVisible.value) return@onKeyEvent false
+                        // 隐藏 UI 快捷键
                         if (event.type == KeyEventType.KeyDown) {
                             when (event.key) {
                                 Key.DirectionLeft -> {
@@ -665,19 +670,23 @@ private fun VideoStateMessage(
     modifier: Modifier = Modifier
 ) {
     val videoState = viewModel.videoState.collectAsState().value
+    val videoLoadError by viewModel.videoLoadError.collectAsState()
 
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        if (playerState.isLoading.value && !playerState.isError.value && !playerState.isSeeking.value) {
+        if (playerState.isLoading.value && !playerState.isError.value && !playerState.isSeeking.value && videoLoadError == null) {
             CircularProgressIndicator()
         }
 
-        if (playerState.isError.value) {
+        // 加载失败（切换剧集/线路或播放器错误）：显示错误浮层
+        if (videoLoadError != null || playerState.isError.value) {
             ShowVideoMessage(
                 stringResource(id = R.string.video_error_msg),
-                onRetryClick = { playerState.control.retry() }
+                onRetryClick = {
+                    if (videoLoadError != null) viewModel.retryLoad() else playerState.control.retry()
+                }
             )
         }
 
@@ -999,7 +1008,11 @@ private fun VideoSideSheet(
         var selectedEpisodeIndex by remember(video.currentEpisodeIndex) { mutableIntStateOf(video.currentEpisodeIndex) }
         EpisodeSideSheet(
             episodes = video.episodes,
-            selectedEpisodeIndex = selectedEpisodeIndex,
+            channels = video.channels,
+            channelIndex = video.channelIndex,
+            playingEpisodeUrl = video.episodeUrl,
+            focusIndex = selectedEpisodeIndex,
+            onChannelClick = { channelIndex -> viewModel.switchChannel(channelIndex) },
             onEpisodeClick = { index, episode ->
                 playerState.control.pause()
                 playerState.setLoading(true)
@@ -1088,71 +1101,239 @@ private fun ResizeSideSheet(
     }
 }
 
+// 线路 tab 与集数按钮共用的边框/颜色：active=聚焦或按压，secondary=选中或播放
+@Composable
+private fun channelBorderStroke(active: Boolean, secondary: Boolean): BorderStroke {
+    val primary = MaterialTheme.colorScheme.primary
+    return BorderStroke(
+        1.0.dp,
+        if (active || secondary) primary else MaterialTheme.colorScheme.outline.copy(0.5f)
+    )
+}
+
+@Composable
+private fun channelButtonColors(active: Boolean, secondary: Boolean) =
+    ButtonDefaults.outlinedButtonColors(
+        containerColor = if (active) MaterialTheme.colorScheme.primary else Color.Transparent,
+        contentColor = when {
+            active -> MaterialTheme.colorScheme.onPrimary
+            secondary -> MaterialTheme.colorScheme.primary
+            else -> Color.LightGray
+        }
+    )
+
 @Composable
 private fun EpisodeSideSheet(
     episodes: List<Episode>,
-    selectedEpisodeIndex: Int,
+    channels: Map<Int, List<Episode>>,
+    channelIndex: Int,
+    playingEpisodeUrl: String,
+    focusIndex: Int,
+    onChannelClick: (Int) -> Unit,
     onEpisodeClick: (Int, Episode) -> Unit,
     onDismissRequest: () -> Unit
 ) {
     val context = LocalContext.current
+    // 稳定焦点请求器：打开侧栏或切换线路后主动夺焦
+    val selectedFocusRequester = remember { FocusRequester() }
+    val channelListState = rememberLazyListState()
+    // 左/右快速切线路后要聚焦的集数 index（null = 不主动聚焦集数）
+    var pendingFocusIndex by remember { mutableStateOf<Int?>(null) }
+    // UP 键从第一集跳转到播放线路 tab 的待聚焦目标（null = 无）
+    var pendingTabFocusIndex by remember { mutableStateOf<Int?>(null) }
+    // 当前聚焦的集数 index（左/右切线路后保持同 index）
+    var focusedEpisodeIndex by remember { mutableIntStateOf(focusIndex) }
+    // 首次打开侧栏时聚焦播放中的集数
+    var hasShownOnce by remember { mutableStateOf(false) }
+    // 每个线路 tab 的焦点请求器（用于从集数列表 UP 到当前线路）
+    val channelFocusRequesters = remember { List(channels.size) { FocusRequester() } }
+
+    // 正在播放的集数在当前线路列表中的 index（不在当前线路则为 -1）
+    val playingIndex = episodes.indexOfFirst { it.url == playingEpisodeUrl }
+    // 正在播放的线路 index（跨所有线路查找）
+    val playingChannelIndex = channels.entries
+        .firstOrNull { (_, eps) -> eps.any { it.url == playingEpisodeUrl } }
+        ?.key ?: -1
+    // 焦点目标：左/右切线路后保持同 index，否则为默认 focusIndex
+    val targetFocusIndex = (pendingFocusIndex ?: focusIndex)
+        .coerceIn(0, (episodes.size - 1).coerceAtLeast(0))
+
     SideSheet(onDismissRequest = onDismissRequest, widthRatio = 0.38f) {
 
-        LazyColumn(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            state = rememberLazyListState(selectedEpisodeIndex, -200)
-        ) {
-            itemsIndexed(episodes) { index, episode ->
-                val focusRequester = remember { FocusRequester() }
-                val interactionSource = remember { MutableInteractionSource() }
-                val isFocused by interactionSource.collectIsFocusedAsState()
-                val isPressed by interactionSource.collectIsPressedAsState()
-                val isActive = isFocused || isPressed
-                val selected = index == selectedEpisodeIndex
-
-                OutlinedButton(
-                    onClick = { onEpisodeClick(index, episode) },
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    border = BorderStroke(
-                        1.0.dp,
-                        if (isActive) MaterialTheme.colorScheme.primary
-                        else if (selected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outline.copy(0.5f)
-                    ),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isActive) MaterialTheme.colorScheme.primary
-                        else Color.Transparent,
-                        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
-                        else if (selected) MaterialTheme.colorScheme.primary
-                        else Color.LightGray
-                    ),
+        Column(Modifier.fillMaxSize()) {
+            if (channels.size > 1) {
+                LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    interactionSource = interactionSource
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    state = channelListState
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (selected) {
-                            EpisodePlaybackIndicator(Modifier.align(Alignment.CenterStart))
+                    items(channels.size) { index ->
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isFocused by interactionSource.collectIsFocusedAsState()
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val isActive = isFocused || isPressed
+                        val selected = index == channelIndex
+                        val isPlayingChannel = index == playingChannelIndex
+
+                        OutlinedButton(
+                            onClick = { onChannelClick(index) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(4.dp),
+                            border = channelBorderStroke(isActive, selected),
+                            colors = channelButtonColors(isActive, selected),
+                            // 焦点在 tab 上时：左右切换 tab 并同步切换线路，焦点保持在 tab 上
+                            modifier = Modifier
+                                .focusRequester(channelFocusRequesters[index])
+                                .onFocusChanged {
+                                    if (it.isFocused && index != channelIndex) onChannelClick(index)
+                                },
+                            interactionSource = interactionSource
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                // 左侧 15dp 空位（播放指示图标位置）
+                                Box(
+                                    modifier = Modifier
+                                        .width(15.dp)
+                                        .height(16.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (isPlayingChannel) {
+                                        EpisodePlaybackIndicator(
+                                            tint = if (isActive) MaterialTheme.colorScheme.onPrimary
+                                                   else MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = stringResource(R.string.channel_number, index + 1),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1
+                                )
+                                // 右侧 15dp 空位，与左侧对称
+                                Spacer(Modifier.width(15.dp))
+                            }
                         }
-
-                        Text(
-                            text = episode.name,
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    }
-                }
-
-                LaunchedEffect(selected) {
-                    if (selected) {
-                        focusRequester.requestFocus()
                     }
                 }
             }
+
+            // 切换线路后让选中标签滚动到可见位置
+            LaunchedEffect(channelIndex) {
+                if (channels.size > 1) {
+                    channelListState.animateScrollToItem(channelIndex.coerceAtLeast(0))
+                }
+            }
+
+            key(channelIndex) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                        // 焦点在集数列表时：左/右快速切换线路并聚焦同 index；第一集 UP 聚焦播放线路 tab
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (event.key) {
+                                Key.DirectionLeft -> {
+                                    if (channelIndex > 0) {
+                                        pendingFocusIndex = focusedEpisodeIndex
+                                        onChannelClick(channelIndex - 1)
+                                    }
+                                    true
+                                }
+                                Key.DirectionRight -> {
+                                    if (channelIndex < channels.size - 1) {
+                                        pendingFocusIndex = focusedEpisodeIndex
+                                        onChannelClick(channelIndex + 1)
+                                    }
+                                    true
+                                }
+                                Key.DirectionUp -> {
+                                    // 仅在第一集时 UP 聚焦当前显示线路的 tab；否则交给正常纵向导航
+                                    if (focusedEpisodeIndex == 0 && channels.size > 1) {
+                                        pendingTabFocusIndex = channelIndex
+                                        true
+                                    } else false
+                                }
+                                else -> false
+                            }
+                        },
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    state = rememberLazyListState(targetFocusIndex, -200)
+                ) {
+                    itemsIndexed(episodes) { index, episode ->
+                        val focusRequester = remember { FocusRequester() }
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isFocused by interactionSource.collectIsFocusedAsState()
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val isActive = isFocused || isPressed
+                        // 播放指示：通过 URL 匹配当前线路中正在播放的集数（切走再切回仍正确）
+                        val isPlaying = index == playingIndex
+                        val isFocusTarget = index == targetFocusIndex
+
+                        OutlinedButton(
+                            onClick = { onEpisodeClick(index, episode) },
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                            shape = RoundedCornerShape(4.dp),
+                            border = channelBorderStroke(isActive, isPlaying),
+                            colors = channelButtonColors(isActive, isPlaying),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { if (it.isFocused) focusedEpisodeIndex = index }
+                                .then(
+                                    if (isFocusTarget) {
+                                        Modifier.focusRequester(selectedFocusRequester)
+                                    } else Modifier
+                                ),
+                            interactionSource = interactionSource
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (isPlaying) {
+                                    EpisodePlaybackIndicator(
+                                        Modifier.align(Alignment.CenterStart),
+                                        tint = if (isActive) MaterialTheme.colorScheme.onPrimary
+                                               else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                Text(
+                                    text = episode.name,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 打开侧栏（首次）聚焦播放中的集数；左/右切线路聚焦同 index；tab 切线路不夺焦
+    LaunchedEffect(channelIndex) {
+        delay(200)
+        val target = pendingFocusIndex ?: if (!hasShownOnce) focusIndex else null
+        if (target != null) {
+            runCatching { selectedFocusRequester.requestFocus() }
+        }
+        pendingFocusIndex = null
+        hasShownOnce = true
+    }
+
+    // UP 键从第一集跳转当前显示线路 tab：先滚动到可见，再延迟夺焦
+    LaunchedEffect(pendingTabFocusIndex) {
+        pendingTabFocusIndex?.let { target ->
+            channelListState.animateScrollToItem(target)
+            delay(100)
+            runCatching { channelFocusRequesters[target].requestFocus() }
+            pendingTabFocusIndex = null
         }
     }
 }
@@ -1168,12 +1349,12 @@ fun PreviewEEpisodePlaybackIndicator() {
 }
 
 @Composable
-fun EpisodePlaybackIndicator(modifier: Modifier = Modifier) {
-    BouncingBarsAnimation(modifier)
+fun EpisodePlaybackIndicator(modifier: Modifier = Modifier, tint: Color = MaterialTheme.colorScheme.primary) {
+    BouncingBarsAnimation(modifier, tint)
 }
 
 @Composable
-private fun BouncingBarsAnimation(modifier: Modifier = Modifier) {
+private fun BouncingBarsAnimation(modifier: Modifier = Modifier, tint: Color = MaterialTheme.colorScheme.primary) {
     val transition = rememberInfiniteTransition(label = "BouncingBars")
     val barWidth = 3.dp
     val maxHeight = 16.dp
@@ -1181,7 +1362,6 @@ private fun BouncingBarsAnimation(modifier: Modifier = Modifier) {
     val barSpacing = 2.dp
     val durationMs = 800
     val startOffset = durationMs / 3
-    val barColor = MaterialTheme.colorScheme.primary
 
     Row(
         modifier = modifier,
@@ -1209,7 +1389,7 @@ private fun BouncingBarsAnimation(modifier: Modifier = Modifier) {
                 width = barWidth,
                 maxHeight = maxHeight,
                 minHeight = minHeight,
-                color = barColor
+                color = tint
             )
         }
     }
