@@ -1049,9 +1049,9 @@ private fun SpeedSideSheet(
         ) {
             speeds.forEachIndexed { index, speed ->
                 AdaptiveTextButton(
+                    // 不强制固定尺寸：按内容自适应宽度（最小 42dp），避免 "1.25X"/"0.75X" 被截断成 "1.2..."/"0.7..."
                     text = speed.first,
                     modifier = Modifier
-                        .size(MediumTextButtonSize)
                         .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
                     onClick = { onSpeedClick(index, speed) },
                     color = if (selectedSpeedIndex == index) MaterialTheme.colorScheme.primary else Color.LightGray,
