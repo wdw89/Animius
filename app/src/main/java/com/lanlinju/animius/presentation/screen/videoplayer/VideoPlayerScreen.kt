@@ -310,7 +310,7 @@ fun VideoPlayScreen(
                             ?.getTrackFormat(0)?.bitrate
                             ?.takeIf { it > 0 }
                         if (bitrate != null) {
-                            "$resolution · ${"%.1f".format(bitrate / 1_000_000f)}Mbps"
+                            "$resolution · Bitrate ${"%.1f".format(bitrate / 1_000_000f)}Mbps"
                         } else {
                             resolution
                         }
