@@ -518,7 +518,7 @@ private fun TopAppBar(
                         },
                         onClick = {
                             expanded = false
-                            // gogoanime 的detailUrl包含域名地址，其他的不包含，所以需要判断一下
+                            // 部分源(如英文站)的detailUrl包含域名地址,其他的不包含,所以需要判断一下
                             val url =
                                 if (detailUrl.contains("http")) detailUrl else "${SourceHolder.currentSource.baseUrl}$detailUrl"
                             uriHandler.openUri(url)
