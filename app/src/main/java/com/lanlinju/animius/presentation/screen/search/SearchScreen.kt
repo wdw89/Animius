@@ -126,10 +126,10 @@ fun SearchScreen(
     }
 
     // 显示验证码提示对话框
-    needCaptchaUrl?.let { url ->
+    needCaptchaUrl?.let { request ->
         AlertDialog(
             onDismissRequest = { viewModel.clearNeedCaptcha() },
-            title = { Text("需要验证码验证") },
+            title = { Text(request.title) },
             text = { Text("搜索时遇到验证码，请完成验证后重试") },
             confirmButton = {
                 val (isFocused, focusModifier) = rememberIsFocused()
@@ -137,7 +137,12 @@ fun SearchScreen(
                     onClick = {
                         viewModel.clearNeedCaptcha()
                         captchaLauncher.launch(
-                            CaptchaWebViewActivity.createIntent(context, url)
+                            CaptchaWebViewActivity.createIntent(
+                                context = context,
+                                url = request.url,
+                                title = request.title,
+                                tokenScript = request.tokenScript
+                            )
                         )
                     },
                     modifier = Modifier.then(focusModifier),

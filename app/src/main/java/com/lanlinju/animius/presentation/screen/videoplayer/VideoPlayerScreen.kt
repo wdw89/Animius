@@ -6,6 +6,8 @@ import android.content.pm.ActivityInfo
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.LinearEasing
@@ -60,6 +62,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -72,6 +75,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -134,6 +138,7 @@ import com.lanlinju.animius.domain.model.Episode
 import com.lanlinju.animius.domain.model.Video
 import com.lanlinju.animius.presentation.component.Forward85
 import com.lanlinju.animius.presentation.component.StateHandler
+import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
 import com.lanlinju.animius.presentation.screen.settings.DanmakuConfigData
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.presentation.theme.padding
@@ -144,6 +149,7 @@ import com.lanlinju.animius.util.isAndroidTV
 import com.lanlinju.animius.util.isTabletDevice
 import com.lanlinju.animius.util.focus.focusedIconButtonColors
 import com.lanlinju.animius.util.focus.focusedOutlinedButtonColors
+import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.openExternalPlayer
@@ -186,6 +192,7 @@ fun VideoPlayScreen(
     val animeVideoState by viewModel.videoState.collectAsStateWithLifecycle()
     val danmakuEnabled by viewModel.danmakuEnabled.collectAsStateWithLifecycle()
     val danmakuSession by viewModel.danmakuSession.collectAsStateWithLifecycle()
+    val needWebAuth by viewModel.needWebAuth.collectAsStateWithLifecycle()
     val view = LocalView.current
     val activity = LocalActivity.current ?: LocalActivity.current as Activity
     val isAutoOrientation by rememberPreference(KEY_AUTO_ORIENTATION_ENABLED, true)
@@ -193,6 +200,55 @@ fun VideoPlayScreen(
 
     // Handle screen orientation and screen-on state
     ManageScreenState(view, activity)
+
+    // 数据源要求先登录/验证码时，拉起网页；完成后自动重试当前集
+    val webAuthContext = LocalContext.current
+    val webAuthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val authenticated = result.resultCode == Activity.RESULT_OK
+        viewModel.clearNeedWebAuth()
+        if (authenticated) {
+            viewModel.retryAfterWebAuth()
+        }
+    }
+
+    needWebAuth?.let { request ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearNeedWebAuth() },
+            title = { Text(request.title) },
+            text = { Text("该数据源需要登录后才能播放，登录完成后将自动继续播放") },
+            confirmButton = {
+                val (isFocused, focusModifier) = rememberIsFocused()
+                TextButton(
+                    onClick = {
+                        webAuthLauncher.launch(
+                            CaptchaWebViewActivity.createIntent(
+                                context = webAuthContext,
+                                url = request.url,
+                                title = request.title,
+                                tokenScript = request.tokenScript
+                            )
+                        )
+                    },
+                    modifier = Modifier.then(focusModifier),
+                    colors = focusedTextButtonColors(isFocused)
+                ) {
+                    Text("去登录")
+                }
+            },
+            dismissButton = {
+                val (isFocused, focusModifier) = rememberIsFocused()
+                TextButton(
+                    onClick = { viewModel.clearNeedWebAuth() },
+                    modifier = Modifier.then(focusModifier),
+                    colors = focusedTextButtonColors(isFocused)
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 
     StateHandler(
         state = animeVideoState,

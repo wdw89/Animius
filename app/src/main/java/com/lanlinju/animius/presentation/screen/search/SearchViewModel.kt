@@ -29,9 +29,9 @@ class SearchViewModel @Inject constructor(
     val query: StateFlow<String>
         get() = _query
 
-    private val _needCaptchaUrl: MutableStateFlow<String?> =
+    private val _needCaptchaUrl: MutableStateFlow<CaptchaCookieManager.PendingWebAuth?> =
         MutableStateFlow(value = null)
-    val needCaptchaUrl: StateFlow<String?>
+    val needCaptchaUrl: StateFlow<CaptchaCookieManager.PendingWebAuth?>
         get() = _needCaptchaUrl
 
     /**
@@ -55,7 +55,7 @@ class SearchViewModel @Inject constructor(
 
     fun clearNeedCaptcha() {
         _needCaptchaUrl.value = null
-        CaptchaCookieManager.captchaUrl = ""
+        CaptchaCookieManager.pendingWebAuth = null
     }
 
     fun getSearchData(query: String, mode: SourceMode) {
@@ -75,10 +75,10 @@ class SearchViewModel @Inject constructor(
      * 检查是否需要验证码 — 由 UI 在 PagingSource 加载完成后调用
      */
     fun checkNeedCaptcha() {
-        val url = CaptchaCookieManager.captchaUrl
-        if (url.isNotEmpty()) {
-            _needCaptchaUrl.value = url
-            CaptchaCookieManager.captchaUrl = ""
+        val request = CaptchaCookieManager.pendingWebAuth
+        if (request != null) {
+            _needCaptchaUrl.value = request
+            CaptchaCookieManager.pendingWebAuth = null
         }
     }
 }

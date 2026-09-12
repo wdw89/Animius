@@ -12,6 +12,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import java.io.File
@@ -149,12 +150,14 @@ private fun StringBuilder.appendDoubleDigit(value: Long) {
     }
 }
 
+internal fun isHlsUrl(url: String): Boolean = url.contains(".m3u8")
+
 internal fun mediaItemCreator(url: String): MediaItem {
     if (url.contains("/storage/emulated")) { // 本地视频文件处理
         return MediaItem.fromUri(Uri.fromFile(File(url)))
     }
     val builder = MediaItem.Builder().setUri(url) // 远程视频文件类型处理
-    if (url.contains(".m3u8")) {
+    if (isHlsUrl(url)) {
         builder.setMimeType(MimeTypes.APPLICATION_M3U8)
     }
     return builder.build()
@@ -163,8 +166,14 @@ internal fun mediaItemCreator(url: String): MediaItem {
 @OptIn(UnstableApi::class)
 internal fun mediaSourceCreator(url: String, headers: Map<String, String>): MediaSource {
     val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
-    val videoSource: MediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-        .createMediaSource(mediaItemCreator(url))
+    // m3u8 必须用 HlsMediaSource:ProgressiveMediaSource 依赖 media3-extractor,
+    // 而其中没有任何 HLS 提取器,会当作容器解析并抛 UnrecognizedInputFormatException
+    // (mediaItemCreator 设置的 mimeType 在这里无效,setMediaSource 已绕过默认工厂)。
+    val videoSource: MediaSource = if (isHlsUrl(url)) {
+        HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItemCreator(url))
+    } else {
+        ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItemCreator(url))
+    }
     return videoSource
 }
 

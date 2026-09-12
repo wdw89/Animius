@@ -11,8 +11,13 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.headers
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 
 /**
  * Network util
@@ -80,6 +85,28 @@ object DownloadManager {
         }.bodyAsText()
         return html
     }
+
+    /**
+     * 发送 application/x-www-form-urlencoded 格式的 POST 请求
+     */
+    suspend fun postForm(
+        url: String,
+        form: Map<String, String>,
+        headers: Map<String, String> = emptyMap()
+    ): String {
+        val body = form.entries.joinToString("&") { (k, v) ->
+            "${k.encodeURL()}=${v.encodeURL()}"
+        }
+        return httpClient.post(url) {
+            header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
+            headers {
+                headers.forEach { (key, value) -> append(key, value) }
+            }
+            setBody(body)
+        }.bodyAsText()
+    }
+
+    private fun String.encodeURL(): String = java.net.URLEncoder.encode(this, "UTF-8")
 
     /*
         suspend fun getHtml(url: String, headers: Map<String, String> = emptyMap()): String {
