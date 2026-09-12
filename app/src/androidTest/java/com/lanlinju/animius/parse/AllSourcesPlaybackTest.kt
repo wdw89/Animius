@@ -1,4 +1,4 @@
-package com.lanlinju.animius.sources
+package com.lanlinju.animius.parse
 
 import android.os.Handler
 import android.os.Looper
@@ -25,16 +25,24 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * 全源全线路播放探针:每个源 → 搜索 → 详情 → 逐线路播放首集。
+ * 全源全线路播放烟雾测试:每个源 → 搜索 → 详情 → 逐线路播放首集。
  *
  * 播放阶段完全复刻 video-player 的 mediaSourceCreator 逻辑
  * (m3u8 → HlsMediaSource,其余 → ProgressiveMediaSource,共用 headers 的 DataSource),
  * 因此能同时暴露"线路解析失败"与"地址拿到但播放失败"。
+ *
+ * 依赖真实站点网络与设备播放器,不在 CI 范围内(CI 仅执行 assembleDebug/Release)。
+ * 执行:
+ * ```
+ * ./gradlew :app:connectedDebugAndroidTest \
+ *   -Pandroid.testInstrumentationRunnerArguments.class=com.lanlinju.animius.parse.AllSourcesPlaybackTest
+ * ```
+ * 结果通过 logcat 汇总:`adb logcat -s SRC-PLAY:I`
  */
 @RunWith(AndroidJUnit4::class)
-class AllSourcesChannelProbeTest {
+class AllSourcesPlaybackTest {
 
-    private val tag = "SRC-PROBE"
+    private val tag = "SRC-PLAY"
 
     /** 多线路番剧,6 个源基本都能搜到 */
     private val keyword = "史莱姆"

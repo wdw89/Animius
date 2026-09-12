@@ -1,4 +1,4 @@
-package com.lanlinju.animius.sources
+package com.lanlinju.animius.parse.cycanime
 
 import android.annotation.SuppressLint
 import android.util.Log
@@ -7,7 +7,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lanlinju.animius.data.remote.parse.CycanimeSource
 import com.lanlinju.animius.data.remote.parse.CycanimeSource.LOGIN_TOKEN_SCRIPT
-import com.lanlinju.animius.data.remote.parse.toBearerValue
 import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
 import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
@@ -30,6 +29,10 @@ import kotlin.coroutines.resume
  *  1. 未登录时播放失败会把"去登录"请求挂到 [CaptchaCookieManager.pendingWebAuth]
  *  2. [LOGIN_TOKEN_SCRIPT] 能从站点真实的 Web Storage 结构里取出 token(空会话也不崩)
  *  3. token 按数据源隔离保存/读取
+ *
+ * 这些用例需要 WebView / Context / 真实网络,因此只能在设备上跑;
+ * 不依赖 Android 的部分(如 Bearer 前缀规范化)见 JVM 单测
+ * `app/src/test/.../parse/cycanime/CycanimeSourceTest.kt`。
  */
 @RunWith(AndroidJUnit4::class)
 class CycaniLoginFlowTest {
@@ -157,29 +160,6 @@ class CycaniLoginFlowTest {
         }
 
         assertEquals("测试不应改动用户的登录态", backup, CaptchaCookieManager.getToken())
-    }
-
-    @Test
-    fun bearerPrefixNormalized() {
-        // 回归:站点下发的 token 可能自带 "Bearer " 前缀,
-        // 若不判断就拼前缀会得到 "Bearer Bearer eyJ..." → 服务端 401
-        val raw = "eyJhbGciOiJIUzI1NiJ9.payload.sig"
-        assertEquals("Bearer $raw", raw.toBearerValue())
-
-        // 已带前缀:不能重复(原样保留,大小写不强制改写)
-        val prefixed = "Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig"
-        assertEquals(prefixed, prefixed.toBearerValue())
-
-        // 前后空格要清掉;已带前缀(任意大小写)的不能再加一次
-        assertEquals(raw.let { "Bearer $it" }, "  $raw  ".toBearerValue())
-        assertEquals(
-            "bearer eyJhbGciOiJIUzI1NiJ9.payload.sig",
-            "  bearer eyJhbGciOiJIUzI1NiJ9.payload.sig  ".toBearerValue()
-        )
-        assertEquals(
-            "BEARER eyJhbGciOiJIUzI1NiJ9.payload.sig",
-            "BEARER eyJhbGciOiJIUzI1NiJ9.payload.sig".toBearerValue()
-        )
     }
 
     private suspend fun WebView.eval(js: String): String =
