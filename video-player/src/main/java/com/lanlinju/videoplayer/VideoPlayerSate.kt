@@ -71,6 +71,7 @@ class VideoPlayerStateImpl(
     override val videoPositionMs = mutableStateOf(0L)
     override val videoDurationMs = mutableStateOf(0L)
     override val mediaSizeBytes = mutableStateOf<Long?>(null)
+    override val isMediaSizeProbed = mutableStateOf(false)
     override val measuredBitrateBps = mutableStateOf<Long?>(null)
     override val isSegmentBitrateSource = mutableStateOf(false)
 
@@ -239,15 +240,22 @@ class VideoPlayerStateImpl(
         if (loading) isError.value = false
     }
 
-    /** HLS 没有声明码率时,码率只能由分片级统计提供,见 [SegmentBitrateMeter] */
+    /** HLS 的码率一律由分片级统计提供,不看清单里的 BANDWIDTH,见 [SegmentBitrateMeter] */
     private val segmentBitrateMeter = SegmentBitrateMeter()
 
     init {
         player.addAnalyticsListener(segmentBitrateMeter)
     }
 
+    override fun resetMediaSizeProbe() {
+        mediaSizeBytes.value = null
+        isMediaSizeProbed.value = false
+    }
+
+    /** bytes 为 null 表示探测结论是"拿不到长度",不是"还没测" */
     override fun setMediaSize(bytes: Long?) {
         mediaSizeBytes.value = bytes
+        isMediaSizeProbed.value = true
     }
 
     override fun setSegmentBitrateSource(useSegments: Boolean) {
@@ -471,8 +479,9 @@ interface VideoPlayerState {
     val videoPositionMs: State<Long>    /*当控制组件显示时才会更新这个值，获取视频当前进度用player.currentPosition*/
     val videoDurationMs: State<Long>    /*视频时长*/
     val mediaSizeBytes: State<Long?>    /*文件大小:远程用HEAD取Content-Length,本地读文件长度;HLS等拿不到时为null*/
-    val measuredBitrateBps: State<Long?>    /*实测码率(分片级,最近30秒媒体),仅控制栏显示时更新;只在没有声明码率的HLS上有值*/
-    val isSegmentBitrateSource: State<Boolean>    /*播放源是HLS:码率改由分片级统计提供,首片落地前为null*/
+    val isMediaSizeProbed: State<Boolean>    /*大小探测是否已结束:未结束时 mediaSizeBytes 的 null 只代表"还没测完"*/
+    val measuredBitrateBps: State<Long?>    /*实测码率(分片级,最近30秒媒体),仅控制栏显示时更新;HLS 首片落地前为null*/
+    val isSegmentBitrateSource: State<Boolean>    /*播放源是HLS:码率一律读分片级实测值,不看清单里的 BANDWIDTH*/
 
     val isFullscreen: State<Boolean>
     val isPlaying: State<Boolean>
@@ -505,6 +514,9 @@ interface VideoPlayerState {
     val control: VideoPlayerControl
 
     fun setLoading(loading: Boolean)
+
+    /** 开始新一轮大小探测:先清空,避免换集时沿用上一集的结论 */
+    fun resetMediaSizeProbe()
     fun setMediaSize(bytes: Long?)
 
     /** 播放源是 HLS 时置 true,让码率改读分片级统计 */

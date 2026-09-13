@@ -363,24 +363,31 @@ fun VideoPlayScreen(
                     val context = LocalContext.current
                     val videoSize = playerState.videoSize.value
                     val subtitle = if (videoSize.width > 0 && videoSize.height > 0) {
-                        // media3 会把 peak/average 填进 Format.bitrate,有声明就用它;
-                        // 没声明的(HLS 分片流不写 BANDWIDTH)用分片字节数换算
+                        // media3 会把 peak/average 填进 Format.bitrate,MP4 有声明就用它
                         val bitrate = playerState.player.currentTracks.groups
                             .firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
                             ?.getTrackFormat(0)?.bitrate
                             ?.takeIf { it > 0 }
                         val measuredBitrate = playerState.measuredBitrateBps.value
                         val sizeBytes = playerState.mediaSizeBytes.value
+                        // 清单里的 BANDWIDTH 是峰值上界,常与真实码率差很远(实测平均值反超它也是常态),
+                        // HLS 一律改用分片级实测值,不去猜声明值准不准
+                        val isHls = playerState.isSegmentBitrateSource.value
                         fun mbps(bps: Long) = "%.1f".format(bps / 1_000_000f)
                         buildList {
                             add("${videoSize.width}×${videoSize.height}")
-                            when {
-                                bitrate != null -> add("Bitrate ${mbps(bitrate.toLong())}Mbps")
-                                measuredBitrate != null -> add("Bitrate ≈${mbps(measuredBitrate)}Mbps")
-                                // 分片统计要等首片下完,等待期间先占个位(非 HLS 源没得算就不显示)
-                                playerState.isSegmentBitrateSource.value -> add("Bitrate ≈--")
+                            if (isHls) {
+                                // 分片统计要等首片下完,等待期间先占个位
+                                add(measuredBitrate?.let { "Bitrate ≈${mbps(it)}Mbps" } ?: "Bitrate ≈--")
+                            } else {
+                                bitrate?.let { add("Bitrate ${mbps(it.toLong())}Mbps") }
                             }
-                            sizeBytes?.let { add(Formatter.formatFileSize(context, it)) }
+                            when {
+                                sizeBytes != null -> add(Formatter.formatFileSize(context, sizeBytes))
+                                // HLS 是分片流没有单一文件大小;探测完了还拿不到长度的也算未知。
+                                // 探测期间先不写,免得先显示"未知"再跳出真实大小
+                                isHls || playerState.isMediaSizeProbed.value -> add("大小未知")
+                            }
                         }.joinToString(" · ")
                     } else null
 
