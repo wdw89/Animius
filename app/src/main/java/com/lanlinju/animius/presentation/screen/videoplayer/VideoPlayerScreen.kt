@@ -3,6 +3,7 @@ package com.lanlinju.animius.presentation.screen.videoplayer
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.text.format.Formatter
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -359,18 +360,28 @@ fun VideoPlayScreen(
                         }
                     }
 
+                    val context = LocalContext.current
                     val videoSize = playerState.videoSize.value
                     val subtitle = if (videoSize.width > 0 && videoSize.height > 0) {
-                        val resolution = "${videoSize.width}×${videoSize.height}"
+                        // media3 会把 peak/average 填进 Format.bitrate,有声明就用它;
+                        // 没声明的(HLS 分片流不写 BANDWIDTH)用分片字节数换算
                         val bitrate = playerState.player.currentTracks.groups
                             .firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
                             ?.getTrackFormat(0)?.bitrate
                             ?.takeIf { it > 0 }
-                        if (bitrate != null) {
-                            "$resolution · Bitrate ${"%.1f".format(bitrate / 1_000_000f)}Mbps"
-                        } else {
-                            resolution
-                        }
+                        val measuredBitrate = playerState.measuredBitrateBps.value
+                        val sizeBytes = playerState.mediaSizeBytes.value
+                        fun mbps(bps: Long) = "%.1f".format(bps / 1_000_000f)
+                        buildList {
+                            add("${videoSize.width}×${videoSize.height}")
+                            when {
+                                bitrate != null -> add("Bitrate ${mbps(bitrate.toLong())}Mbps")
+                                measuredBitrate != null -> add("Bitrate ≈${mbps(measuredBitrate)}Mbps")
+                                // 分片统计要等首片下完,等待期间先占个位(非 HLS 源没得算就不显示)
+                                playerState.isSegmentBitrateSource.value -> add("Bitrate ≈--")
+                            }
+                            sizeBytes?.let { add(Formatter.formatFileSize(context, it)) }
+                        }.joinToString(" · ")
                     } else null
 
                     VideoPlayerControl(

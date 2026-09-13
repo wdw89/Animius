@@ -28,6 +28,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @JvmInline
 value class ResizeMode private constructor(val value: Int) {
@@ -263,9 +265,18 @@ fun VideoPlayer(
 
     LaunchedEffect(url) {
         playerState.player.setVideoUrl(url, headers)
+        // HLS 拿不到声明码率,码率改由分片级统计提供
+        playerState.setSegmentBitrateSource(isHlsUrl(url))
         playerState.player.prepare()
         playerState.player.seekTo(videoPosition)
         playerState.player.playWhenReady = true
+    }
+
+    LaunchedEffect(url) {
+        playerState.setMediaSize(null)
+        // HEAD 请求会阻塞,放到 IO 线程,不拖慢起播
+        val size = withContext(Dispatchers.IO) { probeMediaSize(url, headers) }
+        playerState.setMediaSize(size)
     }
 
     BackHandler {

@@ -4,15 +4,20 @@ import android.net.Uri
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
 import androidx.compose.ui.unit.Constraints
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import java.io.File
@@ -164,8 +169,12 @@ internal fun mediaItemCreator(url: String): MediaItem {
 }
 
 @OptIn(UnstableApi::class)
-internal fun mediaSourceCreator(url: String, headers: Map<String, String>): MediaSource {
-    val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+internal fun mediaSourceCreator(
+    url: String,
+    headers: Map<String, String>
+): MediaSource {
+    val dataSourceFactory = DefaultHttpDataSource.Factory()
+        .setDefaultRequestProperties(headers)
     // m3u8 必须用 HlsMediaSource:ProgressiveMediaSource 依赖 media3-extractor,
     // 而其中没有任何 HLS 提取器,会当作容器解析并抛 UnrecognizedInputFormatException
     // (mediaItemCreator 设置的 mimeType 在这里无效,setMediaSource 已绕过默认工厂)。
@@ -177,12 +186,13 @@ internal fun mediaSourceCreator(url: String, headers: Map<String, String>): Medi
     return videoSource
 }
 
+/** 本地视频(文件路径/内容 URI)必须走默认工厂,DefaultHttpDataSource 打不开它们 */
 @OptIn(UnstableApi::class)
 internal fun ExoPlayer.setVideoUrl(url: String, headers: Map<String, String>) {
-    if (headers.isEmpty()) {
-        setMediaItem(mediaItemCreator(url))
-    } else {
+    if (url.startsWith("http")) {
         setMediaSource(mediaSourceCreator(url, headers))
+    } else {
+        setMediaItem(mediaItemCreator(url))
     }
 }
 
@@ -193,3 +203,106 @@ internal fun loadControlCreator(): LoadControl {
         .setBackBuffer(20_000, true)
         .build()
 }
+
+/**
+ * 视频文件大小:本地文件读文件长度,远程文件用 HEAD 请求取 Content-Length。
+ * HLS 是分片流没有单一文件大小,服务器不支持 HEAD 或不返回长度时同样返回 null。
+ */
+@OptIn(UnstableApi::class)
+internal fun probeMediaSize(url: String, headers: Map<String, String>): Long? {
+    if (isHlsUrl(url)) return null
+    return runCatching {
+        if (!url.startsWith("http")) {
+            return@runCatching File(Uri.parse(url).path ?: url).length().takeIf { it > 0 }
+        }
+        val dataSource = DefaultHttpDataSource.Factory()
+            .setDefaultRequestProperties(headers)
+            .createDataSource()
+        try {
+            // 长度已在 open() 里由 Content-Length/Content-Range 算出,无需自己解析响应头
+            dataSource.open(
+                DataSpec.Builder()
+                    .setUri(url)
+                    .setHttpMethod(DataSpec.HTTP_METHOD_HEAD)
+                    .build()
+            ).takeIf { it > 0 }
+        } finally {
+            dataSource.close()
+        }
+    }.getOrNull()
+}
+
+/**
+ * 分片级码率 = 分片字节数 × 8 ÷ 分片媒体时长,取最近 [SEGMENT_WINDOW_MS] 毫秒媒体的加权平均。
+ *
+ * 分片自带媒体时长,所以缓冲预取和拖动进度条都不会影响它,这是没有声明码率的 HLS 唯一准确的来源
+ * (清单里不写 BANDWIDTH,只能自己量;按下载字节算平均量到的是网速而不是编码码率)。
+ *
+ * 渐进式(MP4)不适用:它的事件跨度是「加载起点 → 文件末尾」而不是分片时长,所以只对 HLS 启用。
+ */
+@OptIn(UnstableApi::class)
+internal class SegmentBitrateMeter : AnalyticsListener {
+    /** 由播放源决定:HLS 置 true,其他源保持 false,免得白算 */
+    var isEnabled: Boolean = false
+
+    @Volatile
+    private var latestBitrateBps: Long? = null
+
+    /** 已统计分片的码率,还没有分片时为 null */
+    val bitrateBps: Long? get() = latestBitrateBps
+
+    /** 分片(字节数, 媒体时长毫秒),最新的排在最前 */
+    private val samples = ArrayDeque<Pair<Long, Long>>()
+
+    fun reset() {
+        samples.clear()
+        latestBitrateBps = null
+    }
+
+    override fun onLoadCompleted(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData
+    ) {
+        if (!isEnabled) return
+        // 清单、初始化段、音轨的事件都不能代表视频分片码率
+        if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA) return
+        if (mediaLoadData.trackType !in SEGMENT_TRACK_TYPES) return
+        // 没有媒体时长的事件(C.TIME_UNSET)会算出巨大负数跨度,用区间一并滤掉
+        val durationMs = mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs
+        if (durationMs !in MIN_SEGMENT_DURATION_MS..MAX_SEGMENT_DURATION_MS) return
+        val bytes = loadEventInfo.bytesLoaded
+        if (bytes <= 0) return
+
+        samples.addFirst(bytes to durationMs)
+
+        // 分片时长在 1~10 秒之间乱跳,所以按媒体时长取窗口,统计跨度才不会忽长忽短
+        var totalBytes = 0L
+        var totalDurationMs = 0L
+        var windowSize = 0
+        for ((sampleBytes, sampleDurationMs) in samples) {
+            if (windowSize > 0 && totalDurationMs >= SEGMENT_WINDOW_MS) break
+            totalBytes += sampleBytes
+            totalDurationMs += sampleDurationMs
+            windowSize++
+        }
+        while (samples.size > windowSize) samples.removeLast()
+
+        latestBitrateBps = totalBytes * 8000 / totalDurationMs
+    }
+}
+
+/** 平滑窗口:最近 30 秒媒体。实测单片码率在 0.6~8 Mbps 之间跳,窗口太短会跟着分片抖 */
+private const val SEGMENT_WINDOW_MS = 30_000L
+private const val MIN_SEGMENT_DURATION_MS = 1_000L
+private const val MAX_SEGMENT_DURATION_MS = 600_000L
+
+/**
+ * 能代表视频分片的轨道类型。HLS 的复用 `.ts` 分片报的是 DEFAULT,只有分离轨道的流才报 VIDEO,
+ * 而这类分片的事件里 trackFormat 是空的(mime 为 null、宽高 -1),没法从格式反推,只能看类型。
+ */
+private val SEGMENT_TRACK_TYPES = setOf(
+    C.TRACK_TYPE_VIDEO,
+    C.TRACK_TYPE_DEFAULT,
+    C.TRACK_TYPE_UNKNOWN
+)

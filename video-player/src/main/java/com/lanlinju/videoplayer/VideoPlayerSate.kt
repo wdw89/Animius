@@ -70,6 +70,9 @@ class VideoPlayerStateImpl(
     override val videoResizeMode = mutableStateOf(ResizeMode.Fit)
     override val videoPositionMs = mutableStateOf(0L)
     override val videoDurationMs = mutableStateOf(0L)
+    override val mediaSizeBytes = mutableStateOf<Long?>(null)
+    override val measuredBitrateBps = mutableStateOf<Long?>(null)
+    override val isSegmentBitrateSource = mutableStateOf(false)
 
     override val isFullscreen = mutableStateOf(true)
     override val isPlaying = mutableStateOf(player.isPlaying)
@@ -236,6 +239,24 @@ class VideoPlayerStateImpl(
         if (loading) isError.value = false
     }
 
+    /** HLS 没有声明码率时,码率只能由分片级统计提供,见 [SegmentBitrateMeter] */
+    private val segmentBitrateMeter = SegmentBitrateMeter()
+
+    init {
+        player.addAnalyticsListener(segmentBitrateMeter)
+    }
+
+    override fun setMediaSize(bytes: Long?) {
+        mediaSizeBytes.value = bytes
+    }
+
+    override fun setSegmentBitrateSource(useSegments: Boolean) {
+        segmentBitrateMeter.isEnabled = useSegments
+        isSegmentBitrateSource.value = useSegments
+        // 换集/换线路后,旧视频的分片不能再算进去
+        segmentBitrateMeter.reset()
+    }
+
     private var pollVideoPositionJob: Job? = null
     private var controlUiLastInteractionMs = 0L
 
@@ -269,6 +290,8 @@ class VideoPlayerStateImpl(
                             player.bufferedPosition / videoDurationMs.value.toFloat()
                     }
                 }
+                // 实测码率只给没有声明码率的 HLS 兜底,跟着控制栏刷新即可,控制栏隐藏时不用算
+                segmentBitrateMeter.bitrateBps?.let { measuredBitrateBps.value = it }
                 controlUiLastInteractionMs += videoPositionPollInterval
 
                 delay(videoPositionPollInterval)
@@ -335,7 +358,10 @@ class VideoPlayerStateImpl(
         if (playbackState == Player.STATE_READY) videoDurationMs.value = player.duration
         this.playbackState.value = playbackState
         when (playbackState) {
-            Player.STATE_IDLE -> Unit
+            Player.STATE_IDLE -> { // 换集/换线路:缓冲区已清空,旧视频的统计值也必须丢掉
+                segmentBitrateMeter.reset()
+                measuredBitrateBps.value = null
+            }
             Player.STATE_BUFFERING -> isLoading.value = true
             Player.STATE_READY -> isLoading.value = false
             Player.STATE_ENDED -> isEnded.value = true
@@ -444,6 +470,9 @@ interface VideoPlayerState {
     val videoResizeMode: State<ResizeMode>
     val videoPositionMs: State<Long>    /*当控制组件显示时才会更新这个值，获取视频当前进度用player.currentPosition*/
     val videoDurationMs: State<Long>    /*视频时长*/
+    val mediaSizeBytes: State<Long?>    /*文件大小:远程用HEAD取Content-Length,本地读文件长度;HLS等拿不到时为null*/
+    val measuredBitrateBps: State<Long?>    /*实测码率(分片级,最近30秒媒体),仅控制栏显示时更新;只在没有声明码率的HLS上有值*/
+    val isSegmentBitrateSource: State<Boolean>    /*播放源是HLS:码率改由分片级统计提供,首片落地前为null*/
 
     val isFullscreen: State<Boolean>
     val isPlaying: State<Boolean>
@@ -476,6 +505,10 @@ interface VideoPlayerState {
     val control: VideoPlayerControl
 
     fun setLoading(loading: Boolean)
+    fun setMediaSize(bytes: Long?)
+
+    /** 播放源是 HLS 时置 true,让码率改读分片级统计 */
+    fun setSegmentBitrateSource(useSegments: Boolean)
 
     fun onChangeVolume(value: Float)
     fun onChangeBrightness(value: Float)
