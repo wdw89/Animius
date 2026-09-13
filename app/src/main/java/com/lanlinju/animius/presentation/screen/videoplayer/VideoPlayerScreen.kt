@@ -363,11 +363,16 @@ fun VideoPlayScreen(
                     val context = LocalContext.current
                     val videoSize = playerState.videoSize.value
                     val subtitle = if (videoSize.width > 0 && videoSize.height > 0) {
-                        // media3 会把 peak/average 填进 Format.bitrate,MP4 有声明就用它
-                        val bitrate = playerState.player.currentTracks.groups
+                        // media3 的 Format.bitrate 是「峰值优先」填的(peakBitrate 有值时用它),
+                        // 平均口径在 averageBitrate 里。MP4 容器的 btrt 常常 max=4Mbps/avg=1.5Mbps,
+                        // 只显示 bitrate 会让人以为片子有 4Mbps,所以两个口径分开显示
+                        val videoFormat = playerState.player.currentTracks.groups
                             .firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
-                            ?.getTrackFormat(0)?.bitrate
-                            ?.takeIf { it > 0 }
+                            ?.getTrackFormat(0)
+                        val avgBitrate = videoFormat?.averageBitrate?.takeIf { it > 0 }
+                            ?: videoFormat?.bitrate?.takeIf { it > 0 }
+                        // 峰值和平均值相同(CBR/只声明了一个值)时不再重复显示
+                        val peakBitrate = videoFormat?.peakBitrate?.takeIf { it > 0 && it != avgBitrate }
                         val measuredBitrate = playerState.measuredBitrateBps.value
                         val sizeBytes = playerState.mediaSizeBytes.value
                         // 清单里的 BANDWIDTH 是峰值上界,常与真实码率差很远(实测平均值反超它也是常态),
@@ -380,7 +385,8 @@ fun VideoPlayScreen(
                                 // 分片统计要等首片下完,等待期间先占个位
                                 add(measuredBitrate?.let { "Bitrate ≈${mbps(it)}Mbps" } ?: "Bitrate ≈--")
                             } else {
-                                bitrate?.let { add("Bitrate ${mbps(it.toLong())}Mbps") }
+                                avgBitrate?.let { add("Bitrate ${mbps(it.toLong())}Mbps") }
+                                peakBitrate?.let { add("峰值 ${mbps(it.toLong())}Mbps") }
                             }
                             when {
                                 sizeBytes != null -> add(Formatter.formatFileSize(context, sizeBytes))
