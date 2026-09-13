@@ -9,7 +9,6 @@ import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
 import com.lanlinju.animius.util.DownloadManager
 import com.lanlinju.animius.util.encodeForUrl
 import com.lanlinju.animius.util.getDefaultDomain
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -31,10 +30,11 @@ internal fun String.toBearerValue(): String {
  *
  * 官网: https://www.cycani.org/
  * 说明:
- * - 站点前端是 SPA,Jsoup 无法解析 HTML;改用官方 JSON A{page}I(参考 AniBaka cycani.json):
- *   - 搜索: /api/videos/search?q={kw}&page=1&page_size=20
+ * - 站点前端是 SPA,Jsoup 无法解析 HTML;改用官方 JSON API(参考 AniBaka cycani.json):
+ *   - 搜索: /api/videos/search?q={kw}&page={page}&page_size=20
  *   - 首页: /api/videos?zone_id={N}&page=1&page_size=20
  *   - 详情: /api/videos/{id} + /api/videos/{id}/sections?player_code=cychub&page=1&page_size=100
+ *   - 相关推荐: /api/videos/{id}/recommendations?limit=12
  *   - 播放: /api/sections/{id}/play-url
  *   - 时间表: /api/index/weekday (返回 7 天 {weekday, videos[]})
  * - 需要特殊请求头(X-App-Name / X-Time-Zone / X-App-Version / Accept: application/json)。
@@ -147,12 +147,22 @@ object CycanimeSource : AnimeSource {
         }
         if (episodes.isNotEmpty()) channels[0] = episodes
 
+        // 相关推荐:详情接口本身不含该数据,站点前端是另发一条请求取的
+        // (从站点 SPA 分包 api-*.js 逆向): GET /api/videos/{id}/recommendations?limit=12
+        // 返回 data.list,结构与首页/搜索一致,可直接复用 parseVideoList。
+        // 官网还会把当前番剧自身过滤掉,这里保持一致。
+        val relatedJson = requestJson("$baseUrl/api/videos/$id/recommendations?limit=12")
+        val relatedAnimes = relatedJson
+            ?.let { parseVideoList(it) }
+            ?.filterNot { it.url == "/anime/$id" }
+            .orEmpty()
+
         return AnimeDetailBean(
             title = title,
             imgUrl = img,
             desc = desc,
             tags = tags,
-            relatedAnimes = emptyList(),
+            relatedAnimes = relatedAnimes,
             channels = channels
         )
     }
@@ -201,7 +211,8 @@ object CycanimeSource : AnimeSource {
         val list = json.optJSONObject("data")?.optJSONArray("list") ?: return emptyList()
         val result = mutableListOf<AnimeBean>()
         for (i in 0 until list.length()) {
-            val item = list.optJSONObject(i)
+            // 个别接口会夹带 null 占位项,站点前端也先过滤(JS: .filter(i => !!i))
+            val item = list.optJSONObject(i) ?: continue
             val id = item.optString("video_id").ifBlank { item.optString("id") }
             val title = item.optString("title")
             val img = item.optString("cover_url")
