@@ -9,8 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -26,7 +24,6 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -119,7 +116,6 @@ import com.lanlinju.animius.domain.model.Episode
 import com.lanlinju.animius.domain.model.Favourite
 import com.lanlinju.animius.presentation.component.LoadingIndicator
 import com.lanlinju.animius.presentation.component.MediaSmall
-import com.lanlinju.animius.presentation.component.MediaSmallRow
 import com.lanlinju.animius.presentation.component.ScrollableText
 import com.lanlinju.animius.presentation.component.StateHandler
 import com.lanlinju.animius.presentation.component.TranslucentStatusBarLayout
@@ -137,7 +133,6 @@ import com.lanlinju.animius.util.focus.handleDPadKeyEvents
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import com.lanlinju.animius.util.dynamicColorOf
 import com.lanlinju.animius.util.isWideScreen
-import com.lanlinju.animius.util.log
 import com.lanlinju.animius.util.rememberPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
