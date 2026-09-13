@@ -7,7 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.anime.danmaku.api.DanmakuSession
-import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
+import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
 import com.lanlinju.animius.domain.model.Episode
 import com.lanlinju.animius.domain.model.Video
 import com.lanlinju.animius.domain.model.WebVideo
@@ -50,18 +50,18 @@ class VideoPlayerViewModel @Inject constructor(
     private val _videoLoadError = MutableStateFlow<Throwable?>(null)
     val videoLoadError: StateFlow<Throwable?> get() = _videoLoadError
 
-    // 数据源要求先登录/验证码时，待打开的网页（非 null 时 UI 拉起 WebView）
-    private val _needWebAuth = MutableStateFlow<CaptchaCookieManager.PendingWebAuth?>(null)
-    val needWebAuth: StateFlow<CaptchaCookieManager.PendingWebAuth?> get() = _needWebAuth
+    // 数据源要求先登录时，待打开的网页（非 null 时 UI 拉起 WebView）
+    private val _needWebAuth = MutableStateFlow<SourceAuthManager.PendingWebAuth?>(null)
+    val needWebAuth: StateFlow<SourceAuthManager.PendingWebAuth?> get() = _needWebAuth
 
     /**
      * 读取数据源留下的待处理鉴权请求（如次元城播放需要登录）。
-     * 数据源在 getVideoData 失败时通过 [CaptchaCookieManager.pendingWebAuth] 传递。
+     * 数据源在 getVideoData 失败时通过 [SourceAuthManager.pendingWebAuth] 传递。
      */
     private fun syncPendingWebAuth() {
-        CaptchaCookieManager.pendingWebAuth?.let {
+        SourceAuthManager.pendingWebAuth?.let {
             _needWebAuth.value = it
-            CaptchaCookieManager.pendingWebAuth = null
+            SourceAuthManager.pendingWebAuth = null
         }
     }
 
@@ -410,7 +410,7 @@ class VideoPlayerViewModel @Inject constructor(
     }
 
     /**
-     * 网页登录/验证码完成后的重试。
+     * 网页登录完成后的重试。
      *
      * 已有正在播放的视频时走 [retryLoad]（只重拉当前集，不打断播放）；
      * 首次加载就失败时走 [retry]（整页重新加载）。

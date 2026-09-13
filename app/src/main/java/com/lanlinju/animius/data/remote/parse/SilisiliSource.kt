@@ -241,6 +241,10 @@ object SilisiliSource : AnimeSource {
 
     private suspend fun getVideoUrl(url: String): String {
         val encryptData = postRequest(url)
+        // 站点偶尔返回空响应,substring 会直接抛 StringIndexOutOfBoundsException
+        if (encryptData.length <= 9) {
+            throw IllegalStateException("播放地址解析失败:站点返回了空响应")
+        }
         val params1 = encryptData.substring(0, 9)
         val params2 = encryptData.substring(9)
 

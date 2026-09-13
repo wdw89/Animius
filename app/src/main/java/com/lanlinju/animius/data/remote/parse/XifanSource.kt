@@ -7,6 +7,7 @@ import com.lanlinju.animius.data.remote.dto.HomeBean
 import com.lanlinju.animius.data.remote.dto.VideoBean
 import com.lanlinju.animius.data.remote.parse.util.WebViewUtil
 import com.lanlinju.animius.util.DownloadManager
+import com.lanlinju.animius.util.encodeForUrl
 import com.lanlinju.animius.util.getDefaultDomain
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -127,6 +128,9 @@ class XifanSource : AnimeSource {
         page: Int
     ): List<AnimeBean> {
         // 稀饭动漫搜索页是 JS 渲染,HTML 解析无结果;改用 maccmsSuggest API(AniBaka 验证方案)
+        // 该接口没有分页参数,只有第一页:必须显式结束翻页,
+        // 否则 PagingSource 永远拿不到空列表,会不断追加重复条目
+        if (page > 1) return emptyList()
         val suggestUrl = "${baseUrl}index.php/ajax/suggest?mid=1&wd=${query.encodeForUrl()}"
         val json = DownloadManager.getHtml(suggestUrl)
         val animeList = mutableListOf<AnimeBean>()
@@ -219,7 +223,4 @@ class XifanSource : AnimeSource {
         } while (out != prev && out.contains("\\u"))
         return out
     }
-
-    private fun String.encodeForUrl(): String =
-        java.net.URLEncoder.encode(this, "UTF-8")
 }

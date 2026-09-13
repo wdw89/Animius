@@ -7,7 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lanlinju.animius.data.remote.parse.CycanimeSource
 import com.lanlinju.animius.data.remote.parse.CycanimeSource.LOGIN_TOKEN_SCRIPT
-import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
+import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
 import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +26,7 @@ import kotlin.coroutines.resume
  * 次元城登录链路回归测试(不需要真实账号)。
  *
  * 验证三件最容易写错的事:
- *  1. 未登录时播放失败会把"去登录"请求挂到 [CaptchaCookieManager.pendingWebAuth]
+ *  1. 未登录时播放失败会把"去登录"请求挂到 [SourceAuthManager.pendingWebAuth]
  *  2. [LOGIN_TOKEN_SCRIPT] 能从站点真实的 Web Storage 结构里取出 token(空会话也不崩)
  *  3. token 按数据源隔离保存/读取
  *
@@ -105,11 +105,11 @@ class CycaniLoginFlowTest {
     @Test
     fun playRequiresLoginWhenNoToken() = runBlocking<Unit> {
         SourceHolder.switchSource(SourceMode.Cycanime)
-        CaptchaCookieManager.pendingWebAuth = null
+        SourceAuthManager.pendingWebAuth = null
 
-        // 该断言只在"未登录"时成立。若设备上已保存 token(用户在 App 里登录过),
-        // 播放会直接成功——此时改为验证登录态确实生效,避免测试被环境状态卡住。
-        val savedToken = CaptchaCookieManager.getToken()
+        // 该断言只在"未登录"时成立。若设备上已保存 token(用户在 App 里登录过)，
+        // 播放会直接成功——此时改为验证登录态确实生效，避免测试被环境状态卡住。
+        val savedToken = SourceAuthManager.getToken()
         if (savedToken.isNotEmpty()) {
             Log.i(tag, "已保存 token(长度=${savedToken.length}),验证登录态生效")
             val ok = runCatching {
@@ -117,7 +117,7 @@ class CycaniLoginFlowTest {
             }
             Log.i(tag, "已登录播放 => 成功=${ok.isSuccess} url=${ok.getOrNull()?.videoUrl?.take(80)}")
             assertTrue("已登录时应当能取到播放地址", ok.isSuccess)
-            assertTrue("已登录时不应再要求登录", CaptchaCookieManager.pendingWebAuth == null)
+            assertTrue("已登录时不应再要求登录", SourceAuthManager.pendingWebAuth == null)
             return@runBlocking
         }
 
@@ -126,40 +126,40 @@ class CycaniLoginFlowTest {
         }
         Log.i(tag, "未登录播放 => 失败=${result.isFailure} 原因=${result.exceptionOrNull()?.message}")
 
-        val pending = CaptchaCookieManager.pendingWebAuth
+        val pending = SourceAuthManager.pendingWebAuth
         assertNotNull("未登录时应挂起登录请求", pending)
         Log.i(tag, "pendingWebAuth url=${pending!!.url} title=${pending.title} hasScript=${pending.tokenScript.isNotEmpty()}")
         assertTrue("登录地址应以 /login 结尾", pending.url.endsWith("/login"))
         assertTrue("登录模式必须带 tokenScript", pending.tokenScript.isNotEmpty())
 
-        CaptchaCookieManager.pendingWebAuth = null
+        SourceAuthManager.pendingWebAuth = null
     }
 
     @Test
     fun tokenIsolatedPerSource() {
         SourceHolder.switchSource(SourceMode.Cycanime)
         // 注意:必须备份并还原,否则会把用户真实登录的 token 删掉
-        val backup = CaptchaCookieManager.getToken()
+        val backup = SourceAuthManager.getToken()
         try {
-            CaptchaCookieManager.clearToken()
-            assertEquals("", CaptchaCookieManager.getToken())
+            SourceAuthManager.clearToken()
+            assertEquals("", SourceAuthManager.getToken())
 
-            CaptchaCookieManager.saveToken("CYC_TOKEN")
-            assertEquals("CYC_TOKEN", CaptchaCookieManager.getToken())
+            SourceAuthManager.saveToken("CYC_TOKEN")
+            assertEquals("CYC_TOKEN", SourceAuthManager.getToken())
 
             // 切到其他数据源,读到的应是各自的 token(空),互不影响
             SourceHolder.switchSource(SourceMode.Agedm)
-            assertEquals("不同数据源不应共享 token", "", CaptchaCookieManager.getToken())
+            assertEquals("不同数据源不应共享 token", "", SourceAuthManager.getToken())
 
             SourceHolder.switchSource(SourceMode.Cycanime)
-            assertEquals("CYC_TOKEN", CaptchaCookieManager.getToken())
+            assertEquals("CYC_TOKEN", SourceAuthManager.getToken())
         } finally {
             // 还原用户原本的登录态
-            CaptchaCookieManager.clearToken()
-            if (backup.isNotEmpty()) CaptchaCookieManager.saveToken(backup)
+            SourceAuthManager.clearToken()
+            if (backup.isNotEmpty()) SourceAuthManager.saveToken(backup)
         }
 
-        assertEquals("测试不应改动用户的登录态", backup, CaptchaCookieManager.getToken())
+        assertEquals("测试不应改动用户的登录态", backup, SourceAuthManager.getToken())
     }
 
     private suspend fun WebView.eval(js: String): String =

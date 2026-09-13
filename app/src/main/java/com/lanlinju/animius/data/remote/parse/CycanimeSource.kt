@@ -5,8 +5,9 @@ import com.lanlinju.animius.data.remote.dto.AnimeDetailBean
 import com.lanlinju.animius.data.remote.dto.EpisodeBean
 import com.lanlinju.animius.data.remote.dto.HomeBean
 import com.lanlinju.animius.data.remote.dto.VideoBean
-import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
+import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
 import com.lanlinju.animius.util.DownloadManager
+import com.lanlinju.animius.util.encodeForUrl
 import com.lanlinju.animius.util.getDefaultDomain
 import org.json.JSONArray
 import org.json.JSONObject
@@ -30,7 +31,7 @@ internal fun String.toBearerValue(): String {
  *
  * 官网: https://www.cycani.org/
  * 说明:
- * - 站点前端是 SPA,Jsoup 无法解析 HTML;改用官方 JSON API(参考 AniBaka cycani.json):
+ * - 站点前端是 SPA,Jsoup 无法解析 HTML;改用官方 JSON A{page}I(参考 AniBaka cycani.json):
  *   - 搜索: /api/videos/search?q={kw}&page=1&page_size=20
  *   - 首页: /api/videos?zone_id={N}&page=1&page_size=20
  *   - 详情: /api/videos/{id} + /api/videos/{id}/sections?player_code=cychub&page=1&page_size=100
@@ -52,10 +53,10 @@ object CycanimeSource : AnimeSource {
     )
 
     /**
-     * 带上登录态的请求头。播放地址接口需要登录,登录后由 [CaptchaCookieManager] 提供 token。
+     * 带上登录态的请求头。播放地址接口需要登录,登录后由 [SourceAuthManager] 提供 token。
      */
     private fun authHeaders(): Map<String, String> {
-        val token = CaptchaCookieManager.getToken().trim()
+        val token = SourceAuthManager.getToken().trim()
         return if (token.isEmpty()) baseHeaders
         else baseHeaders + ("Authorization" to token.toBearerValue())
     }
@@ -168,8 +169,8 @@ object CycanimeSource : AnimeSource {
         // 站点自身也是这样处理的——未登录时播放页只显示"请登录后观看"占位。
         val code = json.optInt("code", -1)
         if (code == 401) {
-            // 通知 UI 拉起网页登录(复用验证码的 WebView 通道),登录成功后由调用方重试
-            CaptchaCookieManager.pendingWebAuth = CaptchaCookieManager.PendingWebAuth(
+            // 通知 UI 拉起网页登录(复用登录 WebView),登录成功后由调用方重试
+            SourceAuthManager.pendingWebAuth = SourceAuthManager.PendingWebAuth(
                 url = "${baseUrl}login",
                 title = "登录次元城",
                 tokenScript = LOGIN_TOKEN_SCRIPT
@@ -191,7 +192,7 @@ object CycanimeSource : AnimeSource {
     // ---------- 搜索 ----------
 
     override suspend fun getSearchData(query: String, page: Int): List<AnimeBean> {
-        val url = "$baseUrl/api/videos/search?q=${query.encodeForUrl()}&page=1&page_size=20"
+        val url = "$baseUrl/api/videos/search?q=${query.encodeForUrl()}&page=$page&page_size=20"
         val json = requestJson(url) ?: return emptyList()
         return parseVideoList(json)
     }
@@ -257,7 +258,4 @@ object CycanimeSource : AnimeSource {
             if (source.isBlank()) null else JSONObject(source)
         }.getOrNull()
     }
-
-    private fun String.encodeForUrl(): String =
-        java.net.URLEncoder.encode(this, "UTF-8")
 }

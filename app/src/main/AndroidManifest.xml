@@ -44,7 +44,7 @@
             android:process=":error_handler" />
 
         <activity
-            android:name=".presentation.screen.captcha.CaptchaWebViewActivity"
+            android:name=".presentation.screen.webauth.WebAuthActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 

@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
-import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
 import com.lanlinju.animius.domain.model.Anime
 import com.lanlinju.animius.domain.repository.AnimeRepository
 import com.lanlinju.animius.util.SourceHolder
@@ -29,11 +28,6 @@ class SearchViewModel @Inject constructor(
     val query: StateFlow<String>
         get() = _query
 
-    private val _needCaptchaUrl: MutableStateFlow<CaptchaCookieManager.PendingWebAuth?> =
-        MutableStateFlow(value = null)
-    val needCaptchaUrl: StateFlow<CaptchaCookieManager.PendingWebAuth?>
-        get() = _needCaptchaUrl
-
     /**
      * 用于标识使用当前动漫源搜索数据
      *
@@ -53,11 +47,6 @@ class SearchViewModel @Inject constructor(
         _query.value = query
     }
 
-    fun clearNeedCaptcha() {
-        _needCaptchaUrl.value = null
-        CaptchaCookieManager.pendingWebAuth = null
-    }
-
     fun getSearchData(query: String, mode: SourceMode) {
         if (query.isEmpty()) return
 
@@ -68,17 +57,6 @@ class SearchViewModel @Inject constructor(
                 .collect {
                     _animesState.value = it
                 }
-        }
-    }
-
-    /**
-     * 检查是否需要验证码 — 由 UI 在 PagingSource 加载完成后调用
-     */
-    fun checkNeedCaptcha() {
-        val request = CaptchaCookieManager.pendingWebAuth
-        if (request != null) {
-            _needCaptchaUrl.value = request
-            CaptchaCookieManager.pendingWebAuth = null
         }
     }
 }

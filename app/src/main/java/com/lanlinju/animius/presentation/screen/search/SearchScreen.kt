@@ -1,9 +1,6 @@
 package com.lanlinju.animius.presentation.screen.search
 
 
-import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,7 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -69,11 +64,9 @@ import com.lanlinju.animius.R
 import com.lanlinju.animius.presentation.component.MediaSmall
 import com.lanlinju.animius.presentation.component.PaginationStateHandler
 import com.lanlinju.animius.presentation.component.WarningMessage
-import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
 import com.lanlinju.animius.util.SourceMode
 import com.lanlinju.animius.util.isWideScreen
 import com.lanlinju.animius.util.focus.focusedIconButtonColors
-import com.lanlinju.animius.util.focus.focusedTextButtonColors
 import com.lanlinju.animius.util.focus.rememberIsFocused
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,7 +79,6 @@ fun SearchScreen(
     val viewModel = hiltViewModel<SearchViewModel>()
     val animesState = viewModel.animesState.collectAsLazyPagingItems()
     val searchQuery by viewModel.query.collectAsState()
-    val needCaptchaUrl by viewModel.needCaptchaUrl.collectAsState()
     var menuExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -94,14 +86,6 @@ fun SearchScreen(
     var searchBarHeight by remember { mutableStateOf(0.dp) }
     val density = LocalDensity.current
     val navFocusRequester = remember { FocusRequester() }
-
-    // PagingSource 加载完成后检查是否需要验证码
-    // 不能在 collect 中检查，因为 PagingData 在加载前就 emit 了
-    LaunchedEffect(animesState.loadState.refresh) {
-        if (animesState.loadState.refresh is androidx.paging.LoadState.NotLoading) {
-            viewModel.checkNeedCaptcha()
-        }
-    }
 
     // Request focus on the appropriate element when isEditing changes:
     // - Enter editing → focus the InputField so the keyboard and cursor work
@@ -112,56 +96,6 @@ fun SearchScreen(
         } else {
             navFocusRequester.requestFocus()
         }
-    }
-
-    val context = LocalContext.current
-    val captchaLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            // 验证码验证完成，重新搜索
-            viewModel.clearNeedCaptcha()
-            viewModel.getSearchData(searchQuery, viewModel.currentSourceMode)
-        }
-    }
-
-    // 显示验证码提示对话框
-    needCaptchaUrl?.let { request ->
-        AlertDialog(
-            onDismissRequest = { viewModel.clearNeedCaptcha() },
-            title = { Text(request.title) },
-            text = { Text("搜索时遇到验证码，请完成验证后重试") },
-            confirmButton = {
-                val (isFocused, focusModifier) = rememberIsFocused()
-                TextButton(
-                    onClick = {
-                        viewModel.clearNeedCaptcha()
-                        captchaLauncher.launch(
-                            CaptchaWebViewActivity.createIntent(
-                                context = context,
-                                url = request.url,
-                                title = request.title,
-                                tokenScript = request.tokenScript
-                            )
-                        )
-                    },
-                    modifier = Modifier.then(focusModifier),
-                    colors = focusedTextButtonColors(isFocused)
-                ) {
-                    Text("去验证")
-                }
-            },
-            dismissButton = {
-                val (isFocused, focusModifier) = rememberIsFocused()
-                TextButton(
-                    onClick = { viewModel.clearNeedCaptcha() },
-                    modifier = Modifier.then(focusModifier),
-                    colors = focusedTextButtonColors(isFocused)
-                ) {
-                    Text("取消")
-                }
-            }
-        )
     }
 
     Box(Modifier.fillMaxSize()) {

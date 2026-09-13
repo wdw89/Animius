@@ -14,8 +14,6 @@ import org.jsoup.select.Elements
 
 object AgedmSource : AnimeSource {
 
-    private const val LOG_TAG = "AgedmSource"
-
     override val DEFAULT_DOMAIN: String = "https://www.agedm.io/"
 
     override var baseUrl: String = getDefaultDomain()

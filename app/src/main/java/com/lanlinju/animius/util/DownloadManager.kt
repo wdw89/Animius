@@ -20,6 +20,13 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 
 /**
+ * URL 查询参数编码（UTF-8）。
+ *
+ * 各数据源搜索关键词都含中文，必须编码后才能拼进 query，统一放在这里避免重复实现。
+ */
+fun String.encodeForUrl(): String = java.net.URLEncoder.encode(this, "UTF-8")
+
+/**
  * Network util
  */
 fun createHttpClient(
@@ -95,7 +102,7 @@ object DownloadManager {
         headers: Map<String, String> = emptyMap()
     ): String {
         val body = form.entries.joinToString("&") { (k, v) ->
-            "${k.encodeURL()}=${v.encodeURL()}"
+            "${k.encodeForUrl()}=${v.encodeForUrl()}"
         }
         return httpClient.post(url) {
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
@@ -105,8 +112,6 @@ object DownloadManager {
             setBody(body)
         }.bodyAsText()
     }
-
-    private fun String.encodeURL(): String = java.net.URLEncoder.encode(this, "UTF-8")
 
     /*
         suspend fun getHtml(url: String, headers: Map<String, String> = emptyMap()): String {

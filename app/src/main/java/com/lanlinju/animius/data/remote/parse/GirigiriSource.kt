@@ -6,8 +6,8 @@ import com.lanlinju.animius.data.remote.dto.AnimeDetailBean
 import com.lanlinju.animius.data.remote.dto.EpisodeBean
 import com.lanlinju.animius.data.remote.dto.HomeBean
 import com.lanlinju.animius.data.remote.dto.VideoBean
-import com.lanlinju.animius.data.remote.parse.util.WebViewUtil
 import com.lanlinju.animius.util.DownloadManager
+import com.lanlinju.animius.util.encodeForUrl
 import com.lanlinju.animius.util.getDefaultDomain
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -17,18 +17,14 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 object GirigiriSource : AnimeSource {
 
-    private const val LOG_TAG = "GirigiriSource"
-
     override val DEFAULT_DOMAIN: String = "https://ani.girigirilove.com"
     override var baseUrl: String = getDefaultDomain()
-    private val webViewUtil: WebViewUtil by lazy { WebViewUtil() }
-
-    override fun onExit() {
-        webViewUtil.clearWeb()
-    }
 
     override suspend fun getSearchData(query: String, page: Int): List<AnimeBean> {
         // HTML 搜索页有 Cloudflare 验证码,改用 maccmsSuggest API(JSON 接口,免验证码)
+        // 该接口没有分页参数,只有第一页:必须显式结束翻页,
+        // 否则 PagingSource 永远拿不到空列表,会不断追加重复条目
+        if (page > 1) return emptyList()
         val suggestUrl = "${baseUrl}/index.php/ajax/suggest?mid=1&wd=${query.encodeForUrl()}"
         val source = DownloadManager.getHtml(suggestUrl)
         val animeList = mutableListOf<AnimeBean>()
@@ -159,7 +155,4 @@ object GirigiriSource : AnimeSource {
     private fun String.padDomain(): String {
         return "$baseUrl$this"
     }
-
-    private fun String.encodeForUrl(): String =
-        java.net.URLEncoder.encode(this, "UTF-8")
 }

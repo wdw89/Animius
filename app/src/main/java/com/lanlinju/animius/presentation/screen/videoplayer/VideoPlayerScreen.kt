@@ -102,7 +102,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -115,7 +114,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Devices
@@ -139,7 +137,7 @@ import com.lanlinju.animius.domain.model.Episode
 import com.lanlinju.animius.domain.model.Video
 import com.lanlinju.animius.presentation.component.Forward85
 import com.lanlinju.animius.presentation.component.StateHandler
-import com.lanlinju.animius.presentation.screen.captcha.CaptchaWebViewActivity
+import com.lanlinju.animius.presentation.screen.webauth.WebAuthActivity
 import com.lanlinju.animius.presentation.screen.settings.DanmakuConfigData
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.presentation.theme.padding
@@ -202,7 +200,7 @@ fun VideoPlayScreen(
     // Handle screen orientation and screen-on state
     ManageScreenState(view, activity)
 
-    // 数据源要求先登录/验证码时，拉起网页；完成后自动重试当前集
+    // 数据源要求先登录时，拉起网页；完成后自动重试当前集
     val webAuthContext = LocalContext.current
     val webAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -224,7 +222,7 @@ fun VideoPlayScreen(
                 TextButton(
                     onClick = {
                         webAuthLauncher.launch(
-                            CaptchaWebViewActivity.createIntent(
+                            WebAuthActivity.createIntent(
                                 context = webAuthContext,
                                 url = request.url,
                                 title = request.title,

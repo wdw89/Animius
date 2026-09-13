@@ -1,4 +1,4 @@
-package com.lanlinju.animius.presentation.screen.captcha
+package com.lanlinju.animius.presentation.screen.webauth
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -8,7 +8,6 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
-import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -29,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,10 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.lanlinju.animius.data.remote.parse.util.CaptchaCookieManager
+import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.Dispatchers
@@ -53,26 +52,24 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
-class CaptchaWebViewActivity : ComponentActivity() {
+class WebAuthActivity : ComponentActivity() {
 
     companion object {
         private const val EXTRA_URL = "extra_url"
-        private const val EXTRA_COOKIES = "extra_cookies"
-        private const val EXTRA_TOKEN = "extra_token"
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_TOKEN_SCRIPT = "extra_token_script"
 
         /**
-         * @param tokenScript 用于读取登录 token 的 JS 表达式(返回 token 字符串)。
-         *   为空表示验证码模式:只保存 Cookie;非空表示登录模式:轮询该脚本,拿到 token 即完成。
+         * @param tokenScript 读取登录 token 的 JS 表达式(返回 token 字符串),
+         *   轮询到它发生变化即视为登录完成。
          */
         fun createIntent(
             context: Context,
             url: String,
-            title: String = "验证码验证",
-            tokenScript: String = ""
+            title: String,
+            tokenScript: String
         ): Intent {
-            return Intent(context, CaptchaWebViewActivity::class.java).apply {
+            return Intent(context, WebAuthActivity::class.java).apply {
                 putExtra(EXTRA_URL, url)
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_TOKEN_SCRIPT, tokenScript)
@@ -89,7 +86,7 @@ class CaptchaWebViewActivity : ComponentActivity() {
             finish()
             return
         }
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "验证码验证"
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "登录"
         val tokenScript = intent.getStringExtra(EXTRA_TOKEN_SCRIPT).orEmpty()
 
         setContent {
@@ -106,24 +103,12 @@ class CaptchaWebViewActivity : ComponentActivity() {
                         )
                     }
                 ) { innerPadding ->
-                    CaptchaWebViewContent(
+                    WebAuthWebViewContent(
                         url = url,
                         tokenScript = tokenScript,
-                        onVerificationComplete = { cookies, token ->
-                            // 保存 Cookie 到本地存储
-                            CaptchaCookieManager.saveCookies(
-                                CaptchaCookieManager.CUR_KEY_COOKIE,
-                                cookies
-                            )
-                            // 登录模式:保存 token
-                            if (token.isNotEmpty()) {
-                                CaptchaCookieManager.saveToken(token)
-                            }
-                            val resultIntent = Intent().apply {
-                                putExtra(EXTRA_COOKIES, cookies)
-                                putExtra(EXTRA_TOKEN, token)
-                            }
-                            setResult(RESULT_OK, resultIntent)
+                        onLoginComplete = { token ->
+                            SourceAuthManager.saveToken(token)
+                            setResult(RESULT_OK)
                             finish()
                         },
                         onCancel = {
@@ -282,23 +267,21 @@ private val EDITABLE_FOCUSED_SCRIPT = """
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun CaptchaWebViewContent(
+private fun WebAuthWebViewContent(
     url: String,
     tokenScript: String,
-    onVerificationComplete: (cookies: String, token: String) -> Unit,
+    onLoginComplete: (token: String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLoginMode = tokenScript.isNotEmpty()
     var webView by remember { mutableStateOf<WebView?>(null) }
     val scope = rememberCoroutineScope()
-    // 轮询检测到的 token(登录模式)
+    // 轮询检测到的 token
     var detectedToken by remember { mutableStateOf("") }
     val buttonFocusRequester = remember { FocusRequester() }
     val (isButtonFocused, buttonFocusModifier) = rememberIsFocused()
     // 用 View 级别的焦点监听,Compose 的 onFocusChanged 无法正确捕获 WebView 内部焦点
     var isWebViewFocused by remember { mutableStateOf(true) }
-    val context = LocalContext.current
 
     // 焦点流转: WebView 焦点时按返回 -> 转移到按钮; 按钮焦点时按返回 -> 退出页面
     BackHandler(enabled = isWebViewFocused) {
@@ -314,16 +297,10 @@ private fun CaptchaWebViewContent(
                 TvWebView(context).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
-                    // TV 上输入框一获得焦点就弹键盘会挡住页面、把焦点困在键盘里,
-                    // 因此由 TvWebView 默认拒绝输入连接,只有用户按 OK 时才放开并弹出。
+                    // 次元城等站点会按 UA 判断"Android 设备不支持网页版"并拦截,
+                    // 登录页必须用桌面 UA 才能正常渲染
                     settings.userAgentString =
-                        if (isLoginMode) {
-                            // 次元城等站点会按 UA 判断"Android 设备不支持网页版"并拦截,
-                            // 登录页必须用桌面 UA 才能正常渲染
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-                        } else {
-                            "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
-                        }
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
                     // 让 WebView 自身可聚焦,且允许页面内元素接管焦点(否则 D-pad 进不来)
                     isFocusable = true
@@ -339,54 +316,21 @@ private fun CaptchaWebViewContent(
                             super.onPageFinished(view, url)
                             // 先让 WebView 获得焦点，否则按键不会送进渲染进程
                             view?.requestFocus()
-                            if (isLoginMode) {
-                                // 页面(或浏览器)可能自动聚焦某个元素,导致加载完就滚到底部、
-                                // 焦点停在页面底部的链接上。先清掉自动聚焦并回到顶部,
-                                // 再由下面的导航脚本把焦点交给用户操作。
-                                view?.evaluateJavascript(
-                                    "(function(){var a=document.activeElement;" +
-                                        "if(a&&a!==document.body){a.blur();}" +
-                                        "window.scrollTo(0,0);})()",
-                                    null
-                                )
-                                // 注入 D-pad 导航(Chromium 自己不会移动 DOM 焦点)
-                                view?.evaluateJavascript(TV_NAV_SCRIPT) { r ->
-                                    if (r?.contains("installed") != true) {
-                                        Log.w("CaptchaWebView", "TV 导航脚本注入失败: $r")
-                                    }
+                            // 页面(或浏览器)可能自动聚焦某个元素,导致加载完就滚到底部、
+                            // 焦点停在页面底部的链接上。先清掉自动聚焦并回到顶部,
+                            // 再由下面的导航脚本把焦点交给用户操作。
+                            view?.evaluateJavascript(
+                                "(function(){var a=document.activeElement;" +
+                                    "if(a&&a!==document.body){a.blur();}" +
+                                    "window.scrollTo(0,0);})()",
+                                null
+                            )
+                            // 注入 D-pad 导航(Chromium 自己不会移动 DOM 焦点)
+                            view?.evaluateJavascript(TV_NAV_SCRIPT) { r ->
+                                if (r?.contains("installed") != true) {
+                                    Log.w("WebAuth", "TV 导航脚本注入失败: $r")
                                 }
-                                return
                             }
-                            // 轮询检测元素出现后立即操作，比固定延迟更快更可靠
-                            view?.evaluateJavascript("""
-                                (function() {
-                                    var tries = 0;
-                                    function clickAnnouncement() {
-                                        var els = document.querySelectorAll('button, a');
-                                        for (var i = 0; i < els.length; i++) {
-                                            var t = (els[i].textContent || '').trim();
-                                            if (t.indexOf('我已了解') >= 0 || t.indexOf('知道了') >= 0 || t === '确定') {
-                                                els[i].click();
-                                                return true;
-                                            }
-                                        }
-                                        return false;
-                                    }
-                                    function focusInput() {
-                                        var input = document.querySelector('input[name=verify]');
-                                        if (input) { input.focus(); input.click(); return true; }
-                                        return false;
-                                    }
-                                    function poll() {
-                                        tries++;
-                                        if (tries > 50) return; // 最多轮询 5 秒
-                                        if (!clickAnnouncement() || !focusInput()) {
-                                            setTimeout(poll, 100);
-                                        }
-                                    }
-                                    poll();
-                                })();
-                            """.trimIndent(), null)
                         }
                     }
 
@@ -406,10 +350,9 @@ private fun CaptchaWebViewContent(
                 .weight(1f)
         )
 
-        // 登录模式:轮询页面上的 token,拿到即自动完成(用户无需点按钮)
-        LaunchedEffect(webView, isLoginMode) {
+        // 轮询页面上的 token,拿到即自动完成(用户无需点按钮)
+        LaunchedEffect(webView) {
             val view = webView ?: return@LaunchedEffect
-            if (!isLoginMode) return@LaunchedEffect
             // 先记下打开页面时已有的 token(可能来自上次登录,可能已过期)。
             // 只有检测到 token 发生变化才自动完成——否则会拿着旧 token 立刻结束,
             // 服务端仍然 401,用户看到的是"登录了还让去登录"的死循环。
@@ -419,31 +362,30 @@ private fun CaptchaWebViewContent(
                 val token = view.readToken(tokenScript)
                 if (token.isNotEmpty() && token != initialToken) {
                     detectedToken = token
-                    view.post {
-                        val cookies = CookieManager.getInstance().getCookie(view.url ?: url) ?: ""
-                        onVerificationComplete(cookies, token)
-                    }
+                    view.post { onLoginComplete(token) }
                     return@LaunchedEffect
                 }
             }
         }
 
-        // 用户完成验证码/登录后点击此按钮
+        // WebView 不显式销毁会随 Activity 一起泄漏
+        DisposableEffect(Unit) {
+            onDispose {
+                webView?.stopLoading()
+                webView?.destroy()
+            }
+        }
+
+        // 用户完成登录后点击此按钮
         Button(
             onClick = {
-                val currentUrl = webView?.url ?: url
-                val cookies = CookieManager.getInstance().getCookie(currentUrl) ?: ""
-                if (isLoginMode) {
-                    // 手动点击时重新读一次 token(轮询还没轮到,或用户想立即完成)。
-                    // 这里必须挂起等待:evaluateJavascript 是异步的,同步取只会拿到空串。
-                    scope.launch {
-                        val token = detectedToken.ifEmpty {
-                            webView?.readToken(tokenScript).orEmpty()
-                        }
-                        onVerificationComplete(cookies, token)
+                // 手动点击时重新读一次 token(轮询还没轮到,或用户想立即完成)。
+                // 这里必须挂起等待:evaluateJavascript 是异步的,同步取只会拿到空串。
+                scope.launch {
+                    val token = detectedToken.ifEmpty {
+                        webView?.readToken(tokenScript).orEmpty()
                     }
-                } else {
-                    onVerificationComplete(cookies, "")
+                    if (token.isNotEmpty()) onLoginComplete(token)
                 }
             },
             modifier = Modifier
@@ -460,7 +402,7 @@ private fun CaptchaWebViewContent(
                 containerColor = MaterialTheme.colorScheme.primary
             )
         ) {
-            Text(if (isLoginMode) "已完成登录" else "已完成验证")
+            Text("已完成登录")
         }
     }
 }
@@ -544,7 +486,7 @@ private class TvWebView(context: Context) : WebView(context) {
     private fun allowKeyboardInPage() {
         evaluateJavascript("window.__animiusAllowKb ? window.__animiusAllowKb() : false") { value ->
             if (value != "true") {
-                // 脚本未注入(例如非登录模式)时的兜底
+                // 脚本未注入时的兜底
                 inputMethodManager()?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
             }
         }
