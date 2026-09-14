@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.lanlinju.animius.data.remote.parse.CycanimeSource
 import com.lanlinju.animius.data.remote.parse.CycanimeSource.LOGIN_TOKEN_SCRIPT
 import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
+import com.lanlinju.animius.data.remote.parse.util.WebAuthSession
 import com.lanlinju.animius.util.SourceHolder
 import com.lanlinju.animius.util.SourceMode
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,7 @@ import kotlin.coroutines.resume
  *
  * 验证三件最容易写错的事:
  *  1. 未登录时播放失败会把"去登录"请求挂到 [SourceAuthManager.requestWebAuth]
- *  2. [LOGIN_TOKEN_SCRIPT] 能从站点真实的 Web Storage 结构里取出 token(空会话也不崩)
+ *  2. [LOGIN_TOKEN_SCRIPT] 能从站点真实的 Web Storage 结构里取出 token 与过期时间(空会话也不崩)
  *  3. token 按数据源隔离保存/读取
  *
  * 这些用例需要 WebView / Context / 真实网络,因此只能在设备上跑;
@@ -42,10 +43,13 @@ class CycaniLoginFlowTest {
     private val desktopUa =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
-    /** 站点真实的会话结构 */
+    /** 站点真实的会话结构(2026-09-15 实测)：token 自带 Bearer 前缀，expiresAt 为 ISO 字符串 */
     private val sampleSession = """
-        {"version":2,"scope":"scope-1","token":"TEST_TOKEN_123","expiresAt":9999999999,"user":{"username":"tester"},"persistent":true}
+        {"version":2,"scope":"scope-1","token":"Bearer TEST_TOKEN_123","expiresAt":"2026-09-22T00:42:18.332566444+08:00"}
     """.trimIndent()
+
+    /** [LOGIN_TOKEN_SCRIPT] 的预期返回值：token 与过期时间用 `|` 分隔 */
+    private val samplePayload = "Bearer TEST_TOKEN_123|2026-09-22T00:42:18.332566444+08:00"
 
     @Test
     fun tokenScriptReadsSession() = runBlocking<Unit> {
@@ -82,19 +86,24 @@ class CycaniLoginFlowTest {
             Log.i(tag, "空会话 => [${runWith(null, null)}]")
             assertEquals("空会话应返回空", "", runWith(null, null))
 
-            // 2) localStorage 的 v2 会话 -> 取到 token
+            // 2) localStorage 的 v2 会话 -> 取到 token 与过期时间
             Log.i(tag, "localStorage v2 => [${runWith(sampleSession, null)}]")
-            assertEquals("TEST_TOKEN_123", runWith(sampleSession, null))
+            assertEquals(samplePayload, runWith(sampleSession, null))
 
-            // 3) 只有 sessionStorage 的 v1 会话(未勾选"保持登录")-> 取到 token
+            // 3) 只有 sessionStorage 的 v1 会话(未勾选"保持登录")-> 同样能取到
             Log.i(tag, "sessionStorage v1 => [${runWith(null, sampleSession)}]")
-            assertEquals("TEST_TOKEN_123", runWith(null, sampleSession))
+            assertEquals(samplePayload, runWith(null, sampleSession))
 
-            // 4) 坏数据 -> 不崩溃,返回空
+            // 4) 会话里没有 expiresAt -> 仍返回 token，过期时间留空(协议里允许省略)
+            val noExpiry = """{"version":2,"token":"Bearer TEST_TOKEN_123"}"""
+            Log.i(tag, "缺 expiresAt => [${runWith(noExpiry, null)}]")
+            assertEquals("Bearer TEST_TOKEN_123|", runWith(noExpiry, null))
+
+            // 5) 坏数据 -> 不崩溃,返回空
             Log.i(tag, "坏数据 => [${runWith("not-json", null)}]")
             assertEquals("坏数据应返回空", "", runWith("not-json", null))
 
-            // 5) 会话里没有 token 字段 -> 空串
+            // 6) 会话里没有 token 字段 -> 空串
             Log.i(tag, "缺 token 字段 => [${runWith("""{"version":2,"scope":"s"}""", null)}]")
             assertEquals("", runWith("""{"version":2,"scope":"s"}""", null))
 
@@ -140,12 +149,14 @@ class CycaniLoginFlowTest {
         SourceHolder.switchSource(SourceMode.Cycanime)
         // 注意:必须备份并还原,否则会把用户真实登录的 token 删掉
         val backup = SourceAuthManager.getToken()
+        val backupExpiresAt = SourceAuthManager.getExpiresAt()
         try {
             SourceAuthManager.clearToken()
             assertEquals("", SourceAuthManager.getToken())
 
-            SourceAuthManager.saveToken("CYC_TOKEN")
+            SourceAuthManager.saveSession(WebAuthSession("CYC_TOKEN", "2026-09-22T00:42:18+08:00"))
             assertEquals("CYC_TOKEN", SourceAuthManager.getToken())
+            assertEquals("2026-09-22T00:42:18+08:00", SourceAuthManager.getExpiresAt())
 
             // 切到其他数据源,读到的应是各自的 token(空),互不影响
             SourceHolder.switchSource(SourceMode.Agedm)
@@ -153,10 +164,13 @@ class CycaniLoginFlowTest {
 
             SourceHolder.switchSource(SourceMode.Cycanime)
             assertEquals("CYC_TOKEN", SourceAuthManager.getToken())
+            assertEquals("2026-09-22T00:42:18+08:00", SourceAuthManager.getExpiresAt())
         } finally {
             // 还原用户原本的登录态
             SourceAuthManager.clearToken()
-            if (backup.isNotEmpty()) SourceAuthManager.saveToken(backup)
+            if (backup.isNotEmpty()) {
+                SourceAuthManager.saveSession(WebAuthSession(backup, backupExpiresAt))
+            }
         }
 
         assertEquals("测试不应改动用户的登录态", backup, SourceAuthManager.getToken())

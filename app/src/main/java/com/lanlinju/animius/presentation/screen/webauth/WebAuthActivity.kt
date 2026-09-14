@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
+import com.lanlinju.animius.data.remote.parse.util.WebAuthSession
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.util.focus.rememberIsFocused
 import kotlinx.coroutines.Dispatchers
@@ -59,8 +60,8 @@ class WebAuthActivity : ComponentActivity() {
         private const val EXTRA_TOKEN_SCRIPT = "extra_token_script"
 
         /**
-         * @param tokenScript 读取登录 token 的 JS 表达式(返回 token 字符串),
-         *   轮询到它发生变化即视为登录完成。
+         * @param tokenScript 读取登录会话的 JS 表达式（返回值见
+         *   [SourceAuthManager.parseLoginPayload]），轮询到 token 发生变化即视为登录完成。
          */
         fun createIntent(
             context: Context,
@@ -105,8 +106,8 @@ class WebAuthActivity : ComponentActivity() {
                     WebAuthWebViewContent(
                         url = url,
                         tokenScript = tokenScript,
-                        onLoginComplete = { token ->
-                            SourceAuthManager.saveToken(token)
+                        onLoginComplete = { session ->
+                            SourceAuthManager.saveSession(session)
                             setResult(RESULT_OK)
                             finish()
                         },
@@ -269,14 +270,12 @@ private val EDITABLE_FOCUSED_SCRIPT = """
 private fun WebAuthWebViewContent(
     url: String,
     tokenScript: String,
-    onLoginComplete: (token: String) -> Unit,
+    onLoginComplete: (WebAuthSession) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     val scope = rememberCoroutineScope()
-    // 轮询检测到的 token
-    var detectedToken by remember { mutableStateOf("") }
     val buttonFocusRequester = remember { FocusRequester() }
     val (isButtonFocused, buttonFocusModifier) = rememberIsFocused()
     // 用 View 级别的焦点监听,Compose 的 onFocusChanged 无法正确捕获 WebView 内部焦点
@@ -361,13 +360,12 @@ private fun WebAuthWebViewContent(
             // 先记下打开页面时已有的 token(可能来自上次登录,可能已过期)。
             // 只有检测到 token 发生变化才自动完成——否则会拿着旧 token 立刻结束,
             // 服务端仍然 401,用户看到的是"登录了还让去登录"的死循环。
-            val initialToken = view.readToken(tokenScript)
+            val initialToken = view.readLoginSession(tokenScript)?.token.orEmpty()
             repeat(600) { // 最多轮询约 10 分钟
                 delay(1000)
-                val token = view.readToken(tokenScript)
-                if (token.isNotEmpty() && token != initialToken) {
-                    detectedToken = token
-                    view.post { onLoginComplete(token) }
+                val session = view.readLoginSession(tokenScript)
+                if (session != null && session.token != initialToken) {
+                    view.post { onLoginComplete(session) }
                     return@LaunchedEffect
                 }
             }
@@ -376,13 +374,11 @@ private fun WebAuthWebViewContent(
         // 用户完成登录后点击此按钮
         Button(
             onClick = {
-                // 手动点击时重新读一次 token(轮询还没轮到,或用户想立即完成)。
+                // 手动点击时重新读一次会话(轮询还没轮到,或用户想立即完成)。
                 // 这里必须挂起等待:evaluateJavascript 是异步的,同步取只会拿到空串。
                 scope.launch {
-                    val token = detectedToken.ifEmpty {
-                        webView?.readToken(tokenScript).orEmpty()
-                    }
-                    if (token.isNotEmpty()) onLoginComplete(token)
+                    val session = webView?.readLoginSession(tokenScript)
+                    if (session != null) onLoginComplete(session)
                 }
             },
             modifier = Modifier
@@ -526,13 +522,13 @@ private class TvWebView(context: Context) : WebView(context) {
 }
 
 /**
- * 执行读取 token 的 JS 并返回结果(挂起)。
+ * 执行读取登录会话的 JS 并解析结果(挂起)。
  *
  * 注意:WebView.evaluateJavascript 的回调在主线程派发,因此不能用 CountDownLatch 阻塞主线程
  * (会死锁并永远返回空值),必须用 suspendCancellableCoroutine 等待。
  */
-private suspend fun WebView.readToken(tokenScript: String): String =
-    evalJsAwait(tokenScript)
+private suspend fun WebView.readLoginSession(tokenScript: String): WebAuthSession? =
+    SourceAuthManager.parseLoginPayload(evalJsAwait(tokenScript))
 
 /**
  * 执行 JS 并把结果当作字符串返回(挂起)。

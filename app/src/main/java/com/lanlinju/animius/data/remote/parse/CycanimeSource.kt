@@ -6,10 +6,12 @@ import com.lanlinju.animius.data.remote.dto.EpisodeBean
 import com.lanlinju.animius.data.remote.dto.HomeBean
 import com.lanlinju.animius.data.remote.dto.VideoBean
 import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
+import com.lanlinju.animius.data.remote.parse.util.WebAuthSession
 import com.lanlinju.animius.util.DownloadManager
 import com.lanlinju.animius.util.encodeForUrl
 import com.lanlinju.animius.util.getDefaultDomain
 import org.json.JSONObject
+import java.time.OffsetDateTime
 
 /**
  * 规范化成 `Bearer <token>`。
@@ -26,6 +28,36 @@ internal fun String.toBearerValue(): String {
 }
 
 /**
+ * 判断是否该在过期前主动续期：剩余时间不足本次会话总时长的一半。
+ *
+ * 必须提前续期而不是等 401 再补：`/api/auth/refresh` 要求传入一个仍然有效的 token，
+ * 过期后只会返回 `400 {"code":1001,"msg":"Invalid Token"}`。
+ *
+ * 用 [savedAtMillis] 反推总时长而不是写死阈值：站点调整有效期（实测为 7 天）时无需改代码，
+ * 也不会因为有效期变短而每次请求都续期。
+ */
+internal fun shouldRefreshToken(
+    expiresAtIso: String,
+    savedAtMillis: Long,
+    nowMillis: Long,
+    remainingRatio: Double = 0.5,
+): Boolean {
+    if (savedAtMillis <= 0L) return false
+    val expiresAtMillis = runCatching { OffsetDateTime.parse(expiresAtIso).toInstant().toEpochMilli() }
+        .getOrNull() ?: return false
+
+    val remaining = expiresAtMillis - nowMillis
+    // 已经过期：续期也只会拿到 1001，交给 401 分支去引导重新登录
+    if (remaining <= 0L) return false
+
+    val lifetime = expiresAtMillis - savedAtMillis
+    // savedAt 比 expiresAt 还晚（设备时间被改过 / 站点返回异常）时不做判断
+    if (lifetime <= 0L) return false
+
+    return remaining <= (lifetime * remainingRatio).toLong()
+}
+
+/**
  * Cycani(次元城动画) 数据源
  *
  * 官网: https://www.cycani.org/
@@ -35,7 +67,8 @@ internal fun String.toBearerValue(): String {
  *   - 首页: /api/videos?zone_id={N}&page=1&page_size=20
  *   - 详情: /api/videos/{id} + /api/videos/{id}/sections?player_code=cychub&page=1&page_size=100
  *   - 相关推荐: /api/videos/{id}/recommendations?limit=12
- *   - 播放: /api/sections/{id}/play-url
+ *   - 播放: /api/v2/sections/{id}/play-url（需要登录，未登录返回 401）
+ *   - 续期: /api/auth/refresh（需要传仍然有效的 token，响应字段为 snake_case 的 expires_at）
  *   - 时间表: /api/index/weekday (返回 7 天 {weekday, videos[]})
  * - 需要特殊请求头(X-App-Name / X-Time-Zone / X-App-Version / Accept: application/json)。
  */
@@ -62,9 +95,13 @@ object CycanimeSource : AnimeSource {
     }
 
     /**
-     * 从页面读取登录 token 的 JS 表达式。
+     * 从页面读取登录会话的 JS 表达式。
      * 站点把会话写在 Web Storage:`cycweb:auth:v2`(localStorage,勾选"保持登录")
-     * 或 `cycweb:auth:v1`(sessionStorage),值为 `{"token":"...","expiresAt":...}`。
+     * 或 `cycweb:auth:v1`(sessionStorage),值为
+     * `{"version":2,"scope":"...","token":"Bearer ...","expiresAt":"<ISO 时间>"}`。
+     *
+     * 返回 `<token>|<expiresAt>`,由 [SourceAuthManager.parseLoginPayload] 解析。
+     * 过期时间一并取回是为了能提前续期,不能只取 token。
      */
     internal val LOGIN_TOKEN_SCRIPT = """
         (function() {
@@ -73,14 +110,13 @@ object CycanimeSource : AnimeSource {
                     || sessionStorage.getItem('cycweb:auth:v1');
                 if (!raw) return '';
                 var session = JSON.parse(raw);
-                return (session && session.token) ? String(session.token) : '';
+                if (!session || !session.token) return '';
+                return String(session.token) + '|' + String(session.expiresAt || '');
             } catch (e) {
                 return '';
             }
         })()
     """.trimIndent()
-
-    private fun String.withoutSlash() = removeSuffix("/")
 
     // ---------- 首页 ----------
 
@@ -265,7 +301,41 @@ object CycanimeSource : AnimeSource {
 
     // ---------- 内部工具 ----------
 
+    /**
+     * 过期前主动续期，成功则覆写本地会话。
+     *
+     * 站点会换发新的 token 与过期时间，旧 token **不会**被吊销（实测换发后旧 token 仍返回 200），
+     * 所以续期不会把用户在其它设备上的登录踢掉。
+     *
+     * 续期失败（网络异常 / 返回 1001）时保留原 token 不动，继续由 [getVideoData] 的 401 分支兜底，
+     * 避免因为一次网络抖动就把用户登出。
+     */
+    private suspend fun refreshTokenIfNeeded() {
+        val token = SourceAuthManager.getToken()
+        if (token.isEmpty()) return
+        val needed = shouldRefreshToken(
+            expiresAtIso = SourceAuthManager.getExpiresAt(),
+            savedAtMillis = SourceAuthManager.getSavedAt(),
+            nowMillis = System.currentTimeMillis(),
+        )
+        if (!needed) return
+
+        val response = runCatching {
+            DownloadManager.postForm("$baseUrl/api/auth/refresh", emptyMap(), authHeaders())
+        }.getOrNull() ?: return
+
+        // 注意:响应里是 snake_case 的 expires_at，与 localStorage 里的 expiresAt 不同名。
+        // 又:org.json 在字段为 JSON null 时 optString 会返回字面量 "null"，必须判掉。
+        val data = runCatching { JSONObject(response).optJSONObject("data") }.getOrNull() ?: return
+        val newToken = data.optString("token")
+        if (newToken.isBlank() || newToken == "null") return
+        val expiresAt = data.optString("expires_at").takeIf { it != "null" }.orEmpty()
+
+        SourceAuthManager.saveSession(WebAuthSession(token = newToken, expiresAt = expiresAt))
+    }
+
     private suspend fun requestJson(url: String): JSONObject? {
+        refreshTokenIfNeeded()
         return runCatching {
             val source = DownloadManager.getHtml(url, authHeaders())
             if (source.isBlank()) null else JSONObject(source)
