@@ -56,12 +56,11 @@ class VideoPlayerViewModel @Inject constructor(
 
     /**
      * 读取数据源留下的待处理鉴权请求（如次元城播放需要登录）。
-     * 数据源在 getVideoData 失败时通过 [SourceAuthManager.pendingWebAuth] 传递。
+     * 数据源在 getVideoData 失败时通过 [SourceAuthManager.requestWebAuth] 提交。
      */
     private fun syncPendingWebAuth() {
-        SourceAuthManager.pendingWebAuth?.let {
+        SourceAuthManager.consumePendingWebAuth()?.let {
             _needWebAuth.value = it
-            SourceAuthManager.pendingWebAuth = null
         }
     }
 

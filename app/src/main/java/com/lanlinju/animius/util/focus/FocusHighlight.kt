@@ -41,6 +41,26 @@ fun rememberIsFocused(): Pair<Boolean, Modifier> {
     var isFocused by remember { mutableStateOf(false) }
     return isFocused to Modifier.onFocusChanged { isFocused = it.isFocused }
 }
+
+/**
+ * The single definition of the TV focus palette: primary container + onPrimary
+ * content while focused, the caller's colors otherwise. Every `focused*Colors`
+ * helper below and [FocusedDropdownMenuItem] resolve through this, so the
+ * highlight only has to change in one place.
+ *
+ * Returns `(containerColor, contentColor)`.
+ */
+@Composable
+private fun focusHighlightColors(
+    isFocused: Boolean,
+    unfocusedContainerColor: Color,
+    unfocusedContentColor: Color,
+): Pair<Color, Color> = if (isFocused) {
+    MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+} else {
+    unfocusedContainerColor to unfocusedContentColor
+}
+
 /**
  * IconButton colors with the shared TV focus highlight: primary container +
  * onPrimary content while focused, transparent container otherwise.
@@ -50,10 +70,11 @@ fun focusedIconButtonColors(
     isFocused: Boolean,
     unfocusedContentColor: Color = MaterialTheme.colorScheme.onSurface,
     unfocusedContainerColor: Color = Color.Transparent,
-): IconButtonColors = IconButtonDefaults.iconButtonColors(
-    containerColor = if (isFocused) MaterialTheme.colorScheme.primary else unfocusedContainerColor,
-    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary else unfocusedContentColor
-)
+): IconButtonColors {
+    val (container, content) =
+        focusHighlightColors(isFocused, unfocusedContainerColor, unfocusedContentColor)
+    return IconButtonDefaults.iconButtonColors(containerColor = container, contentColor = content)
+}
 
 /**
  * TextButton colors with the shared TV focus highlight.
@@ -62,10 +83,11 @@ fun focusedIconButtonColors(
 fun focusedTextButtonColors(
     isFocused: Boolean,
     unfocusedContentColor: Color = MaterialTheme.colorScheme.primary,
-): ButtonColors = ButtonDefaults.textButtonColors(
-    containerColor = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary else unfocusedContentColor
-)
+): ButtonColors {
+    val (container, content) =
+        focusHighlightColors(isFocused, Color.Transparent, unfocusedContentColor)
+    return ButtonDefaults.textButtonColors(containerColor = container, contentColor = content)
+}
 
 /**
  * OutlinedButton colors with the shared TV focus highlight.
@@ -75,10 +97,11 @@ fun focusedOutlinedButtonColors(
     isFocused: Boolean,
     unfocusedContainerColor: Color = Color.Transparent,
     unfocusedContentColor: Color = MaterialTheme.colorScheme.primary,
-): ButtonColors = ButtonDefaults.outlinedButtonColors(
-    containerColor = if (isFocused) MaterialTheme.colorScheme.primary else unfocusedContainerColor,
-    contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimary else unfocusedContentColor
-)
+): ButtonColors {
+    val (container, content) =
+        focusHighlightColors(isFocused, unfocusedContainerColor, unfocusedContentColor)
+    return ButtonDefaults.outlinedButtonColors(containerColor = container, contentColor = content)
+}
 
 /**
  * DropdownMenuItem with the shared TV focus highlight (primary container +
@@ -92,18 +115,22 @@ fun FocusedDropdownMenuItem(
     style: TextStyle = MaterialTheme.typography.bodyMedium,
 ) {
     val (focused, focusModifier) = rememberIsFocused()
+    val (container, content) = focusHighlightColors(
+        isFocused = focused,
+        unfocusedContainerColor = Color.Transparent,
+        unfocusedContentColor = MaterialTheme.colorScheme.onSurface,
+    )
     DropdownMenuItem(
         text = {
             Text(
                 text = text,
                 style = style,
-                color = if (focused) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface
+                color = content
             )
         },
         onClick = onClick,
         modifier = focusModifier
-            .then(if (focused) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier)
+            .then(if (focused) Modifier.background(container) else Modifier)
             .then(modifier)
     )
 }

@@ -180,10 +180,12 @@ object CycanimeSource : AnimeSource {
         val code = json.optInt("code", -1)
         if (code == 401) {
             // 通知 UI 拉起网页登录(复用登录 WebView),登录成功后由调用方重试
-            SourceAuthManager.pendingWebAuth = SourceAuthManager.PendingWebAuth(
-                url = "${baseUrl}login",
-                title = "登录次元城",
-                tokenScript = LOGIN_TOKEN_SCRIPT
+            SourceAuthManager.requestWebAuth(
+                SourceAuthManager.PendingWebAuth(
+                    url = "${baseUrl}login",
+                    title = "登录次元城",
+                    tokenScript = LOGIN_TOKEN_SCRIPT
+                )
             )
             throw IllegalStateException("次元城需要登录后才能播放,请在弹出的页面完成登录")
         }

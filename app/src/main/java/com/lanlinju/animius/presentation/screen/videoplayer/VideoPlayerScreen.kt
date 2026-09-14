@@ -165,21 +165,25 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
-private val Speeds = arrayOf(
-    "0.5X" to 0.5f,
-    "0.75X" to 0.75f,
-    "1.0X" to 1.0f,
-    "1.25X" to 1.25f,
-    "1.5X" to 1.5f,
-    "2.0X" to 2.0f
+/** 侧栏选项：label 是显示文案，value 是点击后要应用的值。 */
+private data class SideSheetOption<T>(val label: String, val value: T)
+
+/** 倍速档位，按升序定义；显示时反转成从快到慢（见 [SpeedSideSheet]）。 */
+private val Speeds = listOf(
+    SideSheetOption("0.5X", 0.5f),
+    SideSheetOption("0.75X", 0.75f),
+    SideSheetOption("1.0X", 1.0f),
+    SideSheetOption("1.25X", 1.25f),
+    SideSheetOption("1.5X", 1.5f),
+    SideSheetOption("2.0X", 2.0f)
 )
 
-private val Resizes = arrayOf(
-    "适应" to ResizeMode.Fit,
-    "拉伸" to ResizeMode.Fill,
-    "填充" to ResizeMode.Full,
-    "16:9" to ResizeMode.FixedRatio_16_9,
-    "4:3" to ResizeMode.FixedRatio_4_3,
+private val Resizes = listOf(
+    SideSheetOption("适应", ResizeMode.Fit),
+    SideSheetOption("拉伸", ResizeMode.Fill),
+    SideSheetOption("填充", ResizeMode.Full),
+    SideSheetOption("16:9", ResizeMode.FixedRatio_16_9),
+    SideSheetOption("4:3", ResizeMode.FixedRatio_4_3),
 )
 
 /* 屏幕方向改变会导致丢失状态 */
@@ -193,7 +197,11 @@ fun VideoPlayScreen(
     val danmakuSession by viewModel.danmakuSession.collectAsStateWithLifecycle()
     val needWebAuth by viewModel.needWebAuth.collectAsStateWithLifecycle()
     val view = LocalView.current
-    val activity = LocalActivity.current ?: LocalActivity.current as Activity
+    // LocalActivity is only provided by a ComponentActivity's setContent; the player is always
+    // activity-hosted, so fail loudly here instead of on a confusing cast at the use site.
+    val activity = requireNotNull(LocalActivity.current) {
+        "VideoPlayScreen must be hosted by a ComponentActivity"
+    }
     val isAutoOrientation by rememberPreference(KEY_AUTO_ORIENTATION_ENABLED, true)
     var isAutoContinuePlayEnabled by rememberPreference(KEY_AUTO_CONTINUE_PLAY_ENABLED, false)
 
@@ -1049,10 +1057,10 @@ private fun VideoSideSheet(
     if (playerState.isSpeedUiVisible.value) {
         SpeedSideSheet(
             selectedSpeedIndex,
-            onSpeedClick = { index, (speedText, speed) ->
+            onSpeedClick = { index, option ->
                 selectedSpeedIndex = index
-                playerState.setSpeedText(if (index == 3) "倍速" else speedText)
-                playerState.control.setPlaybackSpeed(speed)
+                playerState.setSpeedText(if (index == 3) "倍速" else option.label)
+                playerState.control.setPlaybackSpeed(option.value)
             }, onDismissRequest = { playerState.hideSpeedUi() }
         )
     }
@@ -1060,10 +1068,10 @@ private fun VideoSideSheet(
     if (playerState.isResizeUiVisible.value) {
         ResizeSideSheet(
             selectedResizeIndex = selectedResizeIndex,
-            onResizeClick = { index, (resizeText, resizeMode) ->
+            onResizeClick = { index, option ->
                 selectedResizeIndex = index
-                playerState.setResizeText(resizeText)
-                playerState.control.setVideoResize(resizeMode)
+                playerState.setResizeText(option.label)
+                playerState.control.setVideoResize(option.value)
             }, onDismissRequest = { playerState.hideResizeUi() }
         )
     }
@@ -1097,44 +1105,46 @@ private fun VideoSideSheet(
 @Composable
 private fun SpeedSideSheet(
     selectedSpeedIndex: Int,
-    onSpeedClick: (Int, Pair<String, Float>) -> Unit,
+    onSpeedClick: (Int, SideSheetOption<Float>) -> Unit,
     onDismissRequest: () -> Unit
 ) {
-    val speeds = remember { Speeds.reversedArray() }
-    val focusRequester = remember { FocusRequester() }
-
-    BackHandler { onDismissRequest() }
-
-    SideSheet(onDismissRequest = onDismissRequest, widthRatio = 0.2f) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            speeds.forEachIndexed { index, speed ->
-                AdaptiveTextButton(
-                    // 不强制固定尺寸：按内容自适应宽度（最小 42dp），避免 "1.25X"/"0.75X" 被截断成 "1.2..."/"0.7..."
-                    text = speed.first,
-                    modifier = Modifier
-                        .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
-                    onClick = { onSpeedClick(index, speed) },
-                    color = if (selectedSpeedIndex == index) MaterialTheme.colorScheme.primary else Color.LightGray,
-                    fontWeight = if (selectedSpeedIndex == index) FontWeight.Bold else null,
-                )
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        runCatching { focusRequester.requestFocus() }
-    }
+    val speeds = remember { Speeds.reversed() }
+    SelectableSideSheet(
+        options = speeds,
+        selectedIndex = selectedSpeedIndex,
+        // 不传 itemModifier：按钮按内容自适应宽度（最小 42dp），
+        // 避免 "1.25X"/"0.75X" 被截断成 "1.2..."/"0.7..."
+        onClick = onSpeedClick,
+        onDismissRequest = onDismissRequest,
+    )
 }
 
 @Composable
 private fun ResizeSideSheet(
     selectedResizeIndex: Int,
-    onResizeClick: (Int, Pair<String, ResizeMode>) -> Unit,
+    onResizeClick: (Int, SideSheetOption<ResizeMode>) -> Unit,
     onDismissRequest: () -> Unit
+) {
+    SelectableSideSheet(
+        options = Resizes,
+        selectedIndex = selectedResizeIndex,
+        itemModifier = Modifier.size(MediumTextButtonSize),
+        onClick = onResizeClick,
+        onDismissRequest = onDismissRequest,
+    )
+}
+
+/**
+ * 倍速/显示比例共用的侧栏：一列等分布局的可聚焦按钮，首个按钮自动取焦，
+ * Back 键关闭。文案由 [SideSheetOption.label] 提供，样式差异通过 [itemModifier] 传入。
+ */
+@Composable
+private fun <T> SelectableSideSheet(
+    options: List<SideSheetOption<T>>,
+    selectedIndex: Int,
+    onClick: (Int, SideSheetOption<T>) -> Unit,
+    onDismissRequest: () -> Unit,
+    itemModifier: Modifier = Modifier,
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -1146,15 +1156,14 @@ private fun ResizeSideSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Resizes.forEachIndexed { index, resize ->
+            options.forEachIndexed { index, option ->
                 AdaptiveTextButton(
-                    text = resize.first,
-                    modifier = Modifier
-                        .size(MediumTextButtonSize)
+                    text = option.label,
+                    modifier = itemModifier
                         .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
-                    onClick = { onResizeClick(index, resize) },
-                    color = if (selectedResizeIndex == index) MaterialTheme.colorScheme.primary else Color.LightGray,
-                    fontWeight = if (selectedResizeIndex == index) FontWeight.Bold else null,
+                    onClick = { onClick(index, option) },
+                    color = if (selectedIndex == index) MaterialTheme.colorScheme.primary else Color.LightGray,
+                    fontWeight = if (selectedIndex == index) FontWeight.Bold else null,
                 )
             }
         }

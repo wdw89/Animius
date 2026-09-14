@@ -12,7 +12,7 @@ import com.lanlinju.animius.util.SourceHolder
  * 并兼作"通知 UI 拉起网页"的通道。
  *
  * - **Token**：网页登录后站点写入 localStorage/sessionStorage 的 Bearer token，用 [getToken] 读取
- * - **请求**：数据源检测到需要登录时设置 [pendingWebAuth]，UI 读取后拉起
+ * - **请求**：数据源检测到需要登录时调用 [requestWebAuth]，UI 用 [consumePendingWebAuth] 取走后拉起
  *   [com.lanlinju.animius.presentation.screen.webauth.WebAuthActivity]
  *
  * 数据以 [SourceHolder.currentSourceMode] 为 key 隔离，切换数据源互不影响。
@@ -22,7 +22,7 @@ object SourceAuthManager {
     /**
      * 待用户处理的登录请求。
      *
-     * 数据源在检测到需要用户介入时设置 [pendingWebAuth]，UI 读取后拉起 WebView。
+     * 数据源在检测到需要用户介入时通过 [requestWebAuth] 提交，UI 取走后拉起 WebView。
      */
     data class PendingWebAuth(
         /** 需要在 WebView 中打开的网址 */
@@ -41,9 +41,30 @@ object SourceAuthManager {
     private const val PREF_NAME = "source_auth"
 
     /**
-     * 检测到需要登录时的请求，供 ViewModel 读取
+     * 待用户处理的登录请求，只能经 [requestWebAuth]/[consumePendingWebAuth] 访问。
      */
-    var pendingWebAuth: PendingWebAuth? = null
+    private var pendingWebAuth: PendingWebAuth? = null
+
+    /**
+     * 数据源检测到需要登录时调用，把请求交给 UI。
+     */
+    @Synchronized
+    fun requestWebAuth(request: PendingWebAuth) {
+        pendingWebAuth = request
+    }
+
+    /**
+     * UI 取走待处理的登录请求并清空；没有待处理请求时返回 null。
+     *
+     * 取走即清空必须是原子操作：数据源在后台线程写入、ViewModel 在主线程读取，
+     * 分开读写会出现同一个请求被消费两次的竞态。
+     */
+    @Synchronized
+    fun consumePendingWebAuth(): PendingWebAuth? {
+        val request = pendingWebAuth
+        pendingWebAuth = null
+        return request
+    }
 
     private val prefs by lazy {
         AnimeApplication.getInstance().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)

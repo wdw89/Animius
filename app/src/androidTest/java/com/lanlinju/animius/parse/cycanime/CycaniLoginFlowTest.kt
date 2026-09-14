@@ -26,7 +26,7 @@ import kotlin.coroutines.resume
  * 次元城登录链路回归测试(不需要真实账号)。
  *
  * 验证三件最容易写错的事:
- *  1. 未登录时播放失败会把"去登录"请求挂到 [SourceAuthManager.pendingWebAuth]
+ *  1. 未登录时播放失败会把"去登录"请求挂到 [SourceAuthManager.requestWebAuth]
  *  2. [LOGIN_TOKEN_SCRIPT] 能从站点真实的 Web Storage 结构里取出 token(空会话也不崩)
  *  3. token 按数据源隔离保存/读取
  *
@@ -105,7 +105,7 @@ class CycaniLoginFlowTest {
     @Test
     fun playRequiresLoginWhenNoToken() = runBlocking<Unit> {
         SourceHolder.switchSource(SourceMode.Cycanime)
-        SourceAuthManager.pendingWebAuth = null
+        SourceAuthManager.consumePendingWebAuth()
 
         // 该断言只在"未登录"时成立。若设备上已保存 token(用户在 App 里登录过)，
         // 播放会直接成功——此时改为验证登录态确实生效，避免测试被环境状态卡住。
@@ -117,7 +117,7 @@ class CycaniLoginFlowTest {
             }
             Log.i(tag, "已登录播放 => 成功=${ok.isSuccess} url=${ok.getOrNull()?.videoUrl?.take(80)}")
             assertTrue("已登录时应当能取到播放地址", ok.isSuccess)
-            assertTrue("已登录时不应再要求登录", SourceAuthManager.pendingWebAuth == null)
+            assertTrue("已登录时不应再要求登录", SourceAuthManager.consumePendingWebAuth() == null)
             return@runBlocking
         }
 
@@ -126,13 +126,13 @@ class CycaniLoginFlowTest {
         }
         Log.i(tag, "未登录播放 => 失败=${result.isFailure} 原因=${result.exceptionOrNull()?.message}")
 
-        val pending = SourceAuthManager.pendingWebAuth
+        val pending = SourceAuthManager.consumePendingWebAuth()
         assertNotNull("未登录时应挂起登录请求", pending)
         Log.i(tag, "pendingWebAuth url=${pending!!.url} title=${pending.title} hasScript=${pending.tokenScript.isNotEmpty()}")
         assertTrue("登录地址应以 /login 结尾", pending.url.endsWith("/login"))
         assertTrue("登录模式必须带 tokenScript", pending.tokenScript.isNotEmpty())
 
-        SourceAuthManager.pendingWebAuth = null
+        SourceAuthManager.consumePendingWebAuth()
     }
 
     @Test

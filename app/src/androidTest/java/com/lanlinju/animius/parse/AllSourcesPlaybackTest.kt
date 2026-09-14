@@ -52,15 +52,7 @@ class AllSourcesPlaybackTest {
         SourceMode.Gogoanime to "dragon ball daima"
     )
 
-    private val sources = listOf(
-        SourceMode.Silisili,
-        SourceMode.Agedm,
-        SourceMode.Girigiri,
-        SourceMode.Cycanime,
-        SourceMode.Gugufan,
-        SourceMode.Xifan,
-        SourceMode.Gogoanime
-    )
+    private val sources = SourceMode.entries
 
     @Test
     fun allSourcesAllChannels() = runBlocking<Unit> {
