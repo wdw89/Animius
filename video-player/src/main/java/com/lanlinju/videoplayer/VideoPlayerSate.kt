@@ -298,7 +298,8 @@ class VideoPlayerStateImpl(
                             player.bufferedPosition / videoDurationMs.value.toFloat()
                     }
                 }
-                // 实测码率只给没有声明码率的 HLS 兜底,跟着控制栏刷新即可,控制栏隐藏时不用算
+                // 实测码率只给 HLS 用(HLS 一律显示实测值,不看清单里的声明码率),
+                // 跟着控制栏刷新即可,控制栏隐藏时不用算
                 segmentBitrateMeter.bitrateBps?.let { measuredBitrateBps.value = it }
                 controlUiLastInteractionMs += videoPositionPollInterval
 

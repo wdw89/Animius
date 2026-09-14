@@ -243,20 +243,29 @@ internal fun probeMediaSize(url: String, headers: Map<String, String>): Long? {
 @OptIn(UnstableApi::class)
 internal class SegmentBitrateMeter : AnalyticsListener {
     /** 由播放源决定:HLS 置 true,其他源保持 false,免得白算 */
+    @Volatile
     var isEnabled: Boolean = false
 
-    @Volatile
+    /**
+     * samples / latestBitrateBps 会被两个线程碰:onLoadCompleted 在播放线程,
+     * reset() 在主线程(换集、换线路、切换统计来源都会调)。ArrayDeque 不是线程安全的,
+     * 并发 clear/addFirst/removeLast 会算错窗口甚至抛异常,所以统一用一把锁护住。
+     */
+    private val lock = Any()
+
     private var latestBitrateBps: Long? = null
 
     /** 已统计分片的码率,还没有分片时为 null */
-    val bitrateBps: Long? get() = latestBitrateBps
+    val bitrateBps: Long? get() = synchronized(lock) { latestBitrateBps }
 
     /** 分片(字节数, 媒体时长毫秒),最新的排在最前 */
     private val samples = ArrayDeque<Pair<Long, Long>>()
 
     fun reset() {
-        samples.clear()
-        latestBitrateBps = null
+        synchronized(lock) {
+            samples.clear()
+            latestBitrateBps = null
+        }
     }
 
     override fun onLoadCompleted(
@@ -274,21 +283,24 @@ internal class SegmentBitrateMeter : AnalyticsListener {
         val bytes = loadEventInfo.bytesLoaded
         if (bytes <= 0) return
 
-        samples.addFirst(bytes to durationMs)
+        // 上面的过滤只读事件自带的不可变数据,可以放在锁外;下面动 samples 才需要互斥
+        synchronized(lock) {
+            samples.addFirst(bytes to durationMs)
 
-        // 分片时长在 1~10 秒之间乱跳,所以按媒体时长取窗口,统计跨度才不会忽长忽短
-        var totalBytes = 0L
-        var totalDurationMs = 0L
-        var windowSize = 0
-        for ((sampleBytes, sampleDurationMs) in samples) {
-            if (windowSize > 0 && totalDurationMs >= SEGMENT_WINDOW_MS) break
-            totalBytes += sampleBytes
-            totalDurationMs += sampleDurationMs
-            windowSize++
+            // 分片时长在 1~10 秒之间乱跳,所以按媒体时长取窗口,统计跨度才不会忽长忽短
+            var totalBytes = 0L
+            var totalDurationMs = 0L
+            var windowSize = 0
+            for ((sampleBytes, sampleDurationMs) in samples) {
+                if (windowSize > 0 && totalDurationMs >= SEGMENT_WINDOW_MS) break
+                totalBytes += sampleBytes
+                totalDurationMs += sampleDurationMs
+                windowSize++
+            }
+            while (samples.size > windowSize) samples.removeLast()
+
+            latestBitrateBps = totalBytes * 8000 / totalDurationMs
         }
-        while (samples.size > windowSize) samples.removeLast()
-
-        latestBitrateBps = totalBytes * 8000 / totalDurationMs
     }
 }
 

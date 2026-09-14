@@ -1,5 +1,6 @@
 package com.lanlinju.animius.util
 
+import com.lanlinju.animius.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttp
@@ -50,7 +51,10 @@ fun createHttpClient(
                 message.log("HttpClient")
             }
         }
-        level = LogLevel.HEADERS
+        // logger 函数本身已被 BuildConfig.DEBUG 拦住(release 下什么都不输出),但 ktor 仍会
+        // 先把请求头拼成字符串再交给 logger——次元城的播放请求带着 Authorization: Bearer <token>,
+        // release 下这份含令牌的字符串会被白造一次。直接关掉,连拼接都省了。
+        level = if (BuildConfig.DEBUG) LogLevel.HEADERS else LogLevel.NONE
     }
     clientConfig()
 }

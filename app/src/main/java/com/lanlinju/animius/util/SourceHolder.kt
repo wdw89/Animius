@@ -77,5 +77,15 @@ enum class SourceMode {
     Cycanime,
     Gugufan,
     Xifan,
-    Gogoanime,
+    Gogoanime;
+
+    companion object {
+        /**
+         * 按名字查找数据源，名字已不存在时返回 null 而不是抛异常。
+         *
+         * 收藏/历史/下载表里存的是枚举名，删掉数据源后老记录会留下失效名字，
+         * 直接用 [valueOf] 读会抛 IllegalArgumentException 把整个列表一起打挂。
+         */
+        fun fromName(name: String): SourceMode? = entries.firstOrNull { it.name == name }
+    }
 }

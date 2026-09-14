@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -345,6 +344,12 @@ private fun WebAuthWebViewContent(
                     webView = this
                 }
             },
+            // destroy() 必须在 View 从父容器摘除之后调用,onRelease 正是这个时机。
+            // 放进 DisposableEffect.onDispose 会在还挂载着的时候销毁,渲染进程/Adapter 泄漏并打 Chromium 警告。
+            onRelease = { view ->
+                view.stopLoading()
+                view.destroy()
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -365,14 +370,6 @@ private fun WebAuthWebViewContent(
                     view.post { onLoginComplete(token) }
                     return@LaunchedEffect
                 }
-            }
-        }
-
-        // WebView 不显式销毁会随 Activity 一起泄漏
-        DisposableEffect(Unit) {
-            onDispose {
-                webView?.stopLoading()
-                webView?.destroy()
             }
         }
 
