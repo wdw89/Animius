@@ -5,7 +5,6 @@ import com.lanlinju.animius.data.remote.dto.AnimeDetailBean
 import com.lanlinju.animius.data.remote.dto.EpisodeBean
 import com.lanlinju.animius.data.remote.dto.HomeBean
 import com.lanlinju.animius.data.remote.dto.VideoBean
-import com.lanlinju.animius.data.remote.parse.util.WebViewUtil
 import com.lanlinju.animius.util.DownloadManager
 import com.lanlinju.animius.util.encodeForUrl
 import com.lanlinju.animius.util.getDefaultDomain
@@ -17,12 +16,6 @@ class XifanSource : AnimeSource {
     // 稀饭动漫:使用 anime.xifanacg.com(AniBaka 等客户端验证过的活跃域名)
     override val DEFAULT_DOMAIN: String = "https://anime.xifanacg.com/"
     override var baseUrl: String = getDefaultDomain()
-
-    private val webViewUtil: WebViewUtil by lazy { WebViewUtil() }
-
-    override fun onExit() {
-        webViewUtil.clearWeb()
-    }
 
     override suspend fun getHomeData(): List<HomeBean> {
         val source = DownloadManager.getHtml(baseUrl)
@@ -165,62 +158,48 @@ class XifanSource : AnimeSource {
     }
 
     private suspend fun getVideoUrl(url: String): String {
-        // 播放页内嵌 player_aaaa 对象,url 字段可能是 JSON 转义形式(\/ 和 \uXXXX),需解码
         val source = DownloadManager.getHtml(url)
-
-        // 分支1: player_aaaa / player_aaaa 对象的 url 字段(JSON 转义) → 反转义后即真实地址
-        val aaaa = Regex("var player_aaaa=\\{([\\s\\S]*?)\\}\\s*;").find(source)?.groupValues?.get(1)
-        if (aaaa != null) {
-            Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(aaaa)?.groupValues?.get(1)
-                ?.let { return unescapeJson(it) }
-        }
-
-        // 分支2: 任意 "url" 字段(JSON 转义) → 反转义
-        Regex("\"url\"\\s*:\\s*\"((?:https?|//)[^\"]+)\"").find(source)
-            ?.groupValues?.get(1)
-            ?.let { return unescapeJson(it) }
-
-        // 分支3: 已解码的 next 字段(直链 mp4/m3u8)
-        Regex("\"next\"\\s*:\\s*\"(https?://[^\"]+)\"").find(source)
-            ?.groupValues?.get(1)
-            ?.let { return it }
-
-        // 分支4: 页面中任意 mp4/mkv/m3u8 直链(含转义 \/ 形式)
-        Regex("https?:\\\\?/\\\\?/[^\"'\\s]+\\.(mp4|mkv|m3u8)(\\?[^\"'\\s]*)?")
-            .find(source)?.groupValues?.get(0)?.let { return unescapeJson(it) }
-        Regex("https?://[^\"'\\s]+\\.(mp4|mkv|m3u8)(\\?[^\"'\\s]*)?")
-            .find(source)?.groupValues?.get(0)?.let { return it }
-
-        // 分支5: iframe data-src / src(嵌套解析器,直接返回交给播放器或 WebView 跟进)
-        Regex("<iframe[^>]+data-src=\"([^\"]+)\"")
-            .find(source)?.groupValues?.get(1)?.let { return it }
-        Regex("<iframe[^>]+src=\"([^\"]+)\"")
-            .find(source)?.groupValues?.get(1)?.let { return it }
-
-        // 分支6: WebView 拦截兜底
-        return webViewUtil.interceptRequest(
-            url = url,
-            regex = ".*\\.(mp4|mkv|m3u8).*|akamaized|bilivideo.com|play.xfvod.pro|playxf.top",
-            timeoutMs = 25_000,
-            userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-        )
+        return parseXifanVideoUrl(source)
+            ?: throw IllegalStateException("该线路未取到播放地址,请切换其他线路")
     }
+}
 
-    /**
-     * 解码 JSON 字符串转义: \/ → /, \uXXXX → Unicode 字符
-     */
-    private fun unescapeJson(s: String): String {
-        if (!s.contains("\\")) return s
-        var out = s.replace("\\/", "/")
-        // 解码 \uXXXX(正则 \\u 匹配字面量反斜杠+u)
-        val re = Regex("\\\\u([0-9a-fA-F]{4})")
-        var prev: String
-        do {
-            prev = out
-            out = re.replace(out) { m ->
-                m.groupValues[1].toInt(16).toChar().toString()
-            }
-        } while (out != prev && out.contains("\\u"))
-        return out
-    }
+/**
+ * 解码 JSON 字符串转义: \/ → /, \uXXXX → Unicode 字符
+ */
+internal fun unescapeJsonEscapes(s: String): String {
+    if (!s.contains("\\")) return s
+    var out = s.replace("\\/", "/")
+    // 解码 \uXXXX(正则 \\u 匹配字面量反斜杠+u)
+    val re = Regex("\\\\u([0-9a-fA-F]{4})")
+    var prev: String
+    do {
+        prev = out
+        out = re.replace(out) { m -> m.groupValues[1].toInt(16).toChar().toString() }
+    } while (out != prev && out.contains("\\u"))
+    return out
+}
+
+/**
+ * 从稀饭动漫的播放页 HTML 里取出本集的播放地址；取不到返回 null。
+ *
+ * 站点是 maccms 模板，播放地址在 `player_aaaa` 对象的 `url` 字段里，以 JSON 转义形式
+ * 存放（`\/`、`\uXXXX`）。三条线路（`/watch/{id}/{1,2,3}/{集}.html`）实测结构一致。
+ *
+ * 先整体反转义再匹配，这样「取字段」和「扫直链」都只需普通正则，不必为转义形式
+ * 再写一套（历史实现里的 `\\?/\\?/` 正则匹配到的其实是解码后完全相同的字符串）。
+ *
+ * 放在顶层而不是 object 内部，是为了能被 JVM 单测直接调用——`XifanSource` 的
+ * `baseUrl` 初始化需要 Application Context，整个 object 在单测里建不起来。
+ */
+internal fun parseXifanVideoUrl(html: String): String? {
+    val decoded = unescapeJsonEscapes(html)
+
+    // 站点播放配置里的 url 就是当前这一集，最准确
+    Regex("\"url\"\\s*:\\s*\"(https?://[^\"]+)\"")
+        .find(decoded)?.groupValues?.get(1)?.let { return it }
+
+    // 兜底：整页任意直链，站点改模板时仍能找到
+    return Regex("https?://[^\"'\\s]+\\.(?:mp4|mkv|m3u8)(?:\\?[^\"'\\s]*)?")
+        .find(decoded)?.value
 }

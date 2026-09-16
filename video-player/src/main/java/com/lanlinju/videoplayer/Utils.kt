@@ -207,6 +207,16 @@ internal fun loadControlCreator(): LoadControl {
 /**
  * 视频文件大小:本地文件读文件长度,远程文件用 HEAD 请求取 Content-Length。
  * HLS 是分片流没有单一文件大小,服务器不支持 HEAD 或不返回长度时同样返回 null。
+ *
+ * 这里单独建一个 DataSource,是有意为之:
+ * - media3 的 DataSource 实例本身不可共享(非线程安全);能共享的只有连接池。
+ *   播放侧用的 DefaultHttpDataSource 基于 HttpURLConnection,其 keep-alive 池是 JVM 级的,
+ *   所以再多一个实例并不会各起一套连接。
+ * - 只有换成 OkHttpDataSource 才能显式共享池,但那会改变超时/重定向/请求头行为,
+ *   为一个 HEAD 请求不值得冒这个险。
+ *
+ * HEAD 失败一律吞成 null 同样是刻意的:大小只是展示项,取不到时 UI 显示"大小未知",
+ * 不应因此影响播放。
  */
 @OptIn(UnstableApi::class)
 internal fun probeMediaSize(url: String, headers: Map<String, String>): Long? {
