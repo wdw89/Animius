@@ -302,22 +302,33 @@ fun AnimeDetailScreen(
                                 reverseList = reverseList,
                                 focusRequester = controlFocusRequester,
                                 onUpFocusRequest = { focusManager.moveFocus(FocusDirection.Up) },
-                                onDownFocusRequest = { firstRelatedFocusRequester.requestFocus() },
+                                // 相关番剧为空时 requester 不会挂到任何节点，按下键需交回默认焦点搜索
+                                onDownFocusRequest = if (animeDetail.relatedAnimes.isEmpty()) {
+                                    null
+                                } else {
+                                    {
+                                        // 相关列表滚动后首项可能已被回收，此时 requester 未初始化
+                                        runCatching { firstRelatedFocusRequester.requestFocus() }
+                                            .onFailure { focusManager.moveFocus(FocusDirection.Down) }
+                                    }
+                                },
                                 onReverseClick = { reverseList = !reverseList },
                                 onMoreClick = { showBottomSheet = true },
                                 onChannelClick = { showChannelSelectorDialog = true }
                             )
                         }
 
-                        AnimeRelated(
-                            animes = animeDetail.relatedAnimes,
-                            firstItemFocusRequester = firstRelatedFocusRequester,
-                            contentPadding = PaddingValues(horizontal = dimensionResource(Res.dimen.large_padding)),
-                            modifier = Modifier.handleDPadKeyEvents(
-                                onUp = { controlFocusRequester.requestFocus() }
-                            ),
-                            onRelatedAnimeClick = { onRelatedAnimeClick(it, viewModel.mode) }
-                        )
+                        if (animeDetail.relatedAnimes.isNotEmpty()) {
+                            AnimeRelated(
+                                animes = animeDetail.relatedAnimes,
+                                firstItemFocusRequester = firstRelatedFocusRequester,
+                                contentPadding = PaddingValues(horizontal = dimensionResource(Res.dimen.large_padding)),
+                                modifier = Modifier.handleDPadKeyEvents(
+                                    onUp = { controlFocusRequester.requestFocus() }
+                                ),
+                                onRelatedAnimeClick = { onRelatedAnimeClick(it, viewModel.mode) }
+                            )
+                        }
                     }
 
                     Box(
@@ -773,7 +784,7 @@ private fun EpisodeListControl(
     reverseList: Boolean = false,
     focusRequester: FocusRequester? = null,
     onUpFocusRequest: () -> Unit = {},
-    onDownFocusRequest: () -> Unit = {},
+    onDownFocusRequest: (() -> Unit)? = null,
     onReverseClick: () -> Unit,
     onMoreClick: () -> Unit,
     onChannelClick: () -> Unit,
