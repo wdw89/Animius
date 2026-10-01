@@ -44,6 +44,7 @@ import com.lanlinju.animius.data.remote.parse.util.SourceAuthManager
 import com.lanlinju.animius.data.remote.parse.util.WebAuthSession
 import com.lanlinju.animius.presentation.theme.AnimeTheme
 import com.lanlinju.animius.util.focus.rememberIsFocused
+import com.lanlinju.animius.util.isAndroidTV
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -149,6 +150,14 @@ private const val TEXT_ENTRY_SELECTOR =
 private val TV_NAV_SCRIPT = """
     (function () {
       if (window.__animiusTvNav) return 'already';
+      // 触摸设备(mobile/平板)走系统默认触摸弹键盘,不要抑制。
+      // Android 侧已经按 isAndroidTV 分流,这里是兜底:TV 盒子误报触摸也能靠 Android 侧强制,
+      // mobile 接了键盘/遥控器时也不会被卡住。
+      try {
+        var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        if (!window.__animiusForceTv && (coarse || touch)) return 'skipped-touch';
+      } catch (e) {}
       window.__animiusTvNav = true;
 
       var TEXT = "$TEXT_ENTRY_SELECTOR";
@@ -292,7 +301,8 @@ private fun WebAuthWebViewContent(
     Column(modifier = modifier) {
         AndroidView(
             factory = { context ->
-                TvWebView(context).apply {
+                val tvMode = isAndroidTV(context)
+                TvWebView(context, tvMode).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     // 次元城等站点会按 UA 判断"Android 设备不支持网页版"并拦截,
@@ -314,6 +324,11 @@ private fun WebAuthWebViewContent(
                             super.onPageFinished(view, url)
                             // 先让 WebView 获得焦点，否则按键不会送进渲染进程
                             view?.requestFocus()
+                            // 非 TV(手机/平板触摸设备):走系统默认触摸弹键盘,不注入抑制脚本。
+                            // 否则 readonly + inputmode=none 会让触摸点输入框也弹不出键盘。
+                            if (view != null && !isAndroidTV(view.context)) {
+                                return
+                            }
                             // 页面(或浏览器)可能自动聚焦某个元素,导致加载完就滚到底部、
                             // 焦点停在页面底部的链接上。先清掉自动聚焦并回到顶部,
                             // 再由下面的导航脚本把焦点交给用户操作。
@@ -324,8 +339,9 @@ private fun WebAuthWebViewContent(
                                 null
                             )
                             // 注入 D-pad 导航(Chromium 自己不会移动 DOM 焦点)
+                            view?.evaluateJavascript("window.__animiusForceTv=true", null)
                             view?.evaluateJavascript(TV_NAV_SCRIPT) { r ->
-                                if (r?.contains("installed") != true) {
+                                if (r?.contains("installed") != true && r?.contains("already") != true) {
                                     Log.w("WebAuth", "TV 导航脚本注入失败: $r")
                                 }
                             }
@@ -411,7 +427,7 @@ private fun WebAuthWebViewContent(
  *     输入框焦点弄丢(focusout -> focusin:DIV)。消费后由网页重新聚焦并放开键盘限制。
  */
 @SuppressLint("ViewConstructor")
-private class TvWebView(context: Context) : WebView(context) {
+private class TvWebView(context: Context, private val tvMode: Boolean) : WebView(context) {
 
     private companion object {
         /** 焦点监视间隔:用于同步判断 OK 键是否该被拦截 */
@@ -441,7 +457,8 @@ private class TvWebView(context: Context) : WebView(context) {
      * 因此 `setOnKeyListener` 永远不会被调用,必须在子类里拦。
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (isConfirmKey(event.keyCode) && editableFocused) {
+        // 非 TV 不拦截:触摸设备的软键盘回车/换行/搜索等必须交给 Chromium/IME。
+        if (tvMode && isConfirmKey(event.keyCode) && editableFocused) {
             // 等本次按键派发结束后再动:派发过程中操作焦点会打乱 Chromium 状态
             if (event.action == KeyEvent.ACTION_UP) {
                 post { allowKeyboardInPage() }
@@ -496,6 +513,8 @@ private class TvWebView(context: Context) : WebView(context) {
      *     (输入框之间切换时两者都可输入,键盘保持)
      */
     private fun startWatchingFocus() {
+        // 非 TV 不需要 OK 键同步判断,也不在焦点切换时强制收键盘,避免干扰触摸输入。
+        if (!tvMode) return
         if (focusWatchTask != null) return
         val task = object : Runnable {
             override fun run() {
