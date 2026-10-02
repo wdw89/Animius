@@ -7,6 +7,7 @@ on:
     branches:
       - 'main'
       - 'feat-compat-tv'
+      - 'pr/**'
 
 jobs:
   build:
@@ -35,6 +36,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       # Build the Debug APK
+      # 刻意不传签名变量：assembleDebug 用 AGP 自动生成的 debug keystore，
+      # 无需任何 secret，所以来自 fork 的 PR 也能跑（fork 的 secrets 不继承）。
       - name: Build APK
         run: |
           chmod +x ./gradlew
@@ -43,9 +46,9 @@ jobs:
           DANDANPLAY_APP_ID: ${{ secrets.DANDANPLAY_APP_ID }}
           DANDANPLAY_APP_SECRET: ${{ secrets.DANDANPLAY_APP_SECRET }}
 
-      # Upload APK as artifact
-      - name: Upload Signed APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: pre-release
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30

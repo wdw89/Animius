@@ -8,13 +8,12 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
-      # Checkout the code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Set up JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -27,26 +26,58 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-        # Decode and write the signing key from secrets
-      - name: Decode signing key
-        run: echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -di > keystore.jks
+      # 校验必需 secret 齐全。缺失时构建会在 Gradle 配置阶段失败，
+      # 但那时错误信息埋在 Gradle 日志里；这里提前给出可读提示。
+      - name: Verify signing secrets
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$SIGNING_KEY_BASE64" ]  || missing="$missing SIGNING_KEY_BASE64"
+          [ -n "$KEY_STORE_PASSWORD" ] || missing="$missing KEY_STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ]           || missing="$missing KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ]        || missing="$missing KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::缺少必需的仓库 Secrets：$missing"
+            echo "在 Settings → Secrets and variables → Actions 新建（fork 后 secrets 不继承，需手动重配）。"
+            exit 1
+          fi
 
-      # Build the APK
+      # 解出 keystore 到仓库根目录，与 app/build.gradle.kts 中
+      # rootProject.file("\$storeFile") 的解析基准一致。
+      - name: Decode signing key
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+        run: |
+          echo "$SIGNING_KEY_BASE64" | base64 -di > keystore.jks
+          # 确认 base64 未损坏：能列出条目才算解码成功
+          keytool -list -keystore keystore.jks -storepass "${{ secrets.KEY_STORE_PASSWORD }}" > /dev/null
+
       - name: Build APK
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease
         env:
+          KEYSTORE_FILE: keystore.jks
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           DANDANPLAY_APP_ID: ${{ secrets.DANDANPLAY_APP_ID }}
           DANDANPLAY_APP_SECRET: ${{ secrets.DANDANPLAY_APP_SECRET }}
 
-      # Sign the APK (Already handled by Gradle)
-      # Upload APK as artifact
+      # 产物必须是已签名的：未签名 APK 装不上系统，但构建会显示成功。
+      - name: Verify APK signature
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*.apk)
+          echo "构建产物: $apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: app/build/outputs/apk/release/*.apk
+          retention-days: 90

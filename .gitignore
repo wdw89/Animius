@@ -17,3 +17,8 @@ nul
 .opencode
 openspec/
 .vscode/
+
+# 签名材料：泄露后无法给同一个 applicationId 发布更新，只能改包名
+*.jks
+*.keystore
+keystore.properties
