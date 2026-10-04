@@ -19,6 +19,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.withCharset
 
 /**
  * URL 查询参数编码（UTF-8）。
@@ -110,6 +111,28 @@ object DownloadManager {
         }
         return httpClient.post(url) {
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
+            headers {
+                headers.forEach { (key, value) -> append(key, value) }
+            }
+            setBody(body)
+        }.bodyAsText()
+    }
+
+    /**
+     * 发送 application/json 格式的 POST 请求。
+     *
+     * charset 显式写成 utf-8：请求体里会有中文(如稀饭动漫的搜索关键词)，一旦被按 latin-1
+     * 发出去，服务端只会回 `400 {"code":"PGRST102","message":"Empty or invalid json"}`——
+     * 从异常信息里完全看不出是编码问题。ktor 对 String body 默认就用 UTF-8，这里写死只是
+     * 不依赖默认值。
+     */
+    suspend fun postJson(
+        url: String,
+        body: String,
+        headers: Map<String, String> = emptyMap()
+    ): String {
+        return httpClient.post(url) {
+            header(HttpHeaders.ContentType, ContentType.Application.Json.withCharset(Charsets.UTF_8).toString())
             headers {
                 headers.forEach { (key, value) -> append(key, value) }
             }
