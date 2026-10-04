@@ -7,7 +7,9 @@ import com.lanlinju.animius.data.remote.parse.parseXifanSearch
 import com.lanlinju.animius.data.remote.parse.parseXifanWeek
 import com.lanlinju.animius.data.remote.parse.xifanAnimeId
 import com.lanlinju.animius.data.remote.parse.xifanApiHost
+import com.lanlinju.animius.data.remote.parse.XIFAN_DOMAIN
 import com.lanlinju.animius.data.remote.parse.xifanEpisodeId
+import com.lanlinju.animius.data.remote.parse.xifanMigratedDomain
 import com.lanlinju.animius.data.remote.parse.xifanPlaybackRequestBody
 import com.lanlinju.animius.data.remote.parse.xifanPlaybackUrl
 import com.lanlinju.animius.data.remote.parse.xifanSourceCode
@@ -63,6 +65,37 @@ class XifanSourceTest {
         assertEquals("192.168.1.10", xifanApiHost("http://192.168.1.10:8080/"))
         assertEquals("xifanacg.com", xifanApiHost("  https://next.xifanacg.com/schedule  "))
         assertEquals("xifanacg.com", xifanApiHost(""))
+    }
+
+    /**
+     * 回归：用户设置里残留的旧域名会让首页板块与周表静默拿到首页 HTML。
+     *
+     * 旧域名对 `/recent`、`/browse/format/{tv,movie,ova}`、`/schedule` 一律 301 跳**首页**
+     * （不是跳到新站的对应路径），所以靠"会自动跳转"兜不住 —— 表现为首页/周表不对，
+     * 而搜索/详情/播放走 API 完全正常，很难联想到是域名残留。
+     */
+    @Test
+    fun legacyDomainIsMigrated() {
+        assertEquals(XIFAN_DOMAIN, xifanMigratedDomain("https://anime.xifanacg.com/"))
+        assertEquals(XIFAN_DOMAIN, xifanMigratedDomain("https://anime.xifanacg.com"))
+        assertEquals(XIFAN_DOMAIN, xifanMigratedDomain("  https://anime.xifanacg.com/recent  "))
+        assertEquals(XIFAN_DOMAIN, xifanMigratedDomain("http://anime.xifanacg.com:80/"))
+    }
+
+    @Test
+    fun currentDomainIsNotMigrated() {
+        // 已经是新域名就别写回 preferences，避免每次构造都做一次无意义的写入
+        assertNull(xifanMigratedDomain(XIFAN_DOMAIN))
+        assertNull(xifanMigratedDomain("https://next.xifanacg.com/"))
+    }
+
+    @Test
+    fun customDomainIsNeverMigrated() {
+        // 用户自己填的镜像域名认不准就不动，迁移只针对确切的旧域名
+        assertNull(xifanMigratedDomain("https://my.mirror.example/"))
+        assertNull(xifanMigratedDomain("https://anime.my.mirror.example/"))
+        assertNull(xifanMigratedDomain(""))
+        assertNull(xifanMigratedDomain(null))
     }
 
     // ---------- 地址解析 ----------

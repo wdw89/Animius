@@ -5,8 +5,9 @@ import com.lanlinju.animius.data.remote.dto.AnimeDetailBean
 import com.lanlinju.animius.data.remote.dto.EpisodeBean
 import com.lanlinju.animius.data.remote.dto.HomeBean
 import com.lanlinju.animius.data.remote.dto.VideoBean
+import androidx.core.content.edit
 import com.lanlinju.animius.util.DownloadManager
-import com.lanlinju.animius.util.getDefaultDomain
+import com.lanlinju.animius.util.preferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -42,8 +43,31 @@ import org.jsoup.nodes.Element
  */
 class XifanSource : AnimeSource {
 
-    override val DEFAULT_DOMAIN: String = "https://next.xifanacg.com/"
-    override var baseUrl: String = getDefaultDomain()
+    override val DEFAULT_DOMAIN: String = XIFAN_DOMAIN
+    override var baseUrl: String = xifanMigratedDomain(getStoredDomain()) ?: DEFAULT_DOMAIN
+
+    /**
+     * 把已失效的旧域名一次性迁到当前域名。
+     *
+     * 用户在站点改版前设置过 `https://anime.xifanacg.com/`，这个值会一直留在
+     * SharedPreferences 里（`getDefaultDomain()` 直接读它）。而旧域名现在对
+     * `/recent`、`/browse/format/{tv,movie,ova}`、`/schedule` 这些列表页
+     * **一律 301 跳回首页**，于是首页板块与周表会静默地拿到首页 HTML ——
+     * 搜索/详情/播放走 API 不受影响，所以现象是"首页和周表不对，其它正常"，
+     * 很难联想到是域名残留。
+     *
+     * 迁而不删：改写用户设置属于副作用，写回 [KEY_SOURCE_DOMAIN] 才能让设置页的
+     * 「修改域名」对话框也显示正确值，否则用户会看到一个已失效的旧域名。
+     * 只在确实需要迁移时写一次，不每次构造都写。
+     */
+    init {
+        xifanMigratedDomain(getStoredDomain())?.let { migrated ->
+            preferences.edit { putString(KEY_SOURCE_DOMAIN, migrated) }
+        }
+    }
+
+    private fun getStoredDomain(): String? =
+        preferences.getString(KEY_SOURCE_DOMAIN, null)
 
     /**
      * 播放器请求头：只带 UA，**不要**带站点 Referer。
@@ -222,6 +246,17 @@ class XifanSource : AnimeSource {
 
 private const val XIFAN_ANON_KEY = "sb_publishable_OBIVAWACIX6lPXrO98_z24_HcsmalkA"
 
+/** 站点改版后的域名。 */
+internal const val XIFAN_DOMAIN = "https://next.xifanacg.com/"
+
+/**
+ * 改版前的域名，现在 301 到 [XIFAN_DOMAIN]。
+ *
+ * 留着它是为了识别用户设置里的残留值 —— 对列表页它不是跳到新站的对应路径，
+ * 而是跳回首页，所以不能靠"会自动跳转"来兜住。
+ */
+private const val XIFAN_LEGACY_HOST = "anime.xifanacg.com"
+
 private const val SEARCH_PAGE_SIZE = 24
 
 /**
@@ -249,6 +284,19 @@ private fun JSONObject.stringOrEmpty(key: String): String =
     optString(key).takeIf { it != "null" }.orEmpty()
 
 /**
+ * 把用户设置里的旧域名迁到当前域名；不是旧域名（或为空）则返回 null，表示沿用原值。
+ *
+ * 见 [XifanSource] 的 init：旧域名对列表页一律 301 跳首页，会让首页板块与周表
+ * 静默地拿到首页 HTML。单独抽成纯函数是为了能在 JVM 单测里覆盖，
+ * 而 `XifanSource` 的初始化需要 Application Context。
+ */
+internal fun xifanMigratedDomain(stored: String?): String? {
+    val host = xifanHost(stored.orEmpty())
+    // 只有确切的旧域名才迁。用户自己填的镜像域名不能动——认不准就别改。
+    return if (host == XIFAN_LEGACY_HOST) XIFAN_DOMAIN else null
+}
+
+/**
  * 从用户配置的域名推出 API 主机名。
  *
  * API 与网页不在同一台主机：网页是 `next.xifanacg.com`，数据在 `api.xifanacg.com`。
@@ -256,18 +304,23 @@ private fun JSONObject.stringOrEmpty(key: String): String =
  * 去掉 `anime.` 前缀才能落到还活着的 API 主机上。
  */
 internal fun xifanApiHost(baseUrl: String): String {
-    val trimmed = baseUrl.trim()
-    val host = trimmed
-        .substringAfter("://", trimmed)
-        .substringBefore('/')
-        .substringBefore(':')
-        .trim()
+    val host = xifanHost(baseUrl)
     return when {
         host.isEmpty() -> "xifanacg.com"
         host.startsWith("anime.") -> host.removePrefix("anime.")
         host.startsWith("next.") -> host.removePrefix("next.")
         else -> host
     }
+}
+
+/** 取出域名里的主机名：去掉协议、路径与端口。 */
+private fun xifanHost(baseUrl: String): String {
+    val trimmed = baseUrl.trim()
+    return trimmed
+        .substringAfter("://", trimmed)
+        .substringBefore('/')
+        .substringBefore(':')
+        .trim()
 }
 
 /** 从 `/anime/3294`(或带查询串的同形地址)里取出番剧 id。 */
