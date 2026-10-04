@@ -116,6 +116,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -260,7 +261,7 @@ fun VideoPlayScreen(
     StateHandler(
         state = animeVideoState,
         onLoading = { ShowLoadingPage() },
-        onFailure = { ShowFailurePage(viewModel, onBackClick) }
+        onFailure = { ShowFailurePage(viewModel, it.error, onBackClick) }
     ) { resource ->
         resource.data?.let { video ->
 
@@ -485,13 +486,18 @@ private fun ShowLoadingPage() {
 
 // Failure screen composable
 @Composable
-private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> Unit) {
+private fun ShowFailurePage(
+    viewModel: VideoPlayerViewModel,
+    error: Throwable?,
+    onBackClick: () -> Unit
+) {
     val retryFocusRequester = remember { FocusRequester() }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -506,6 +512,18 @@ private fun ShowFailurePage(viewModel: VideoPlayerViewModel, onBackClick: () -> 
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium
         )
+        // 把失败原因透出来。各数据源在取播放地址时抛的异常信息是用户判断
+        // "换线路/稍后再试/该源已失效"的唯一依据(例如稀饭动漫的
+        // "该集暂无播放地址")，只显示一句通用的 "找不到番剧" 会让人无从下手。
+        error?.message?.takeIf { it.isNotBlank() }?.let { reason ->
+            Spacer(modifier = Modifier.padding(vertical = 4.dp))
+            Text(
+                text = reason,
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+        }
         Spacer(modifier = Modifier.padding(vertical = 8.dp))
         val (backFocused, backModifier) = rememberIsFocused()
         OutlinedButton(
